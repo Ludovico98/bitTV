@@ -1,0 +1,1798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BitTV Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Open+Sans:wght@500&family=Bebas+Neue&family=Playfair+Display:ital,wght@0,700;1,700&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  /* ---------- timing (set to 0 when Animations are switched off in Settings) ---------- */
+  :root {
+    --d: 160ms;          /* focus scale / fades */
+    --dScroll: 200ms;    /* row + page movement */
+    --dAmb: 350ms;       /* ambient colour bleed */
+    --safeX: 80px;       /* Apple tvOS safe area: 80 pt sides, 60 pt top/bottom */
+    --safeY: 60px;
+    --gap: 40px;         /* tvOS horizontal spacing between focusable items */
+    --ink: #f4f6fa;
+    --ink2: rgba(244, 246, 250, 0.62);
+    --ink3: rgba(244, 246, 250, 0.38);
+    --glass: rgba(255, 255, 255, 0.055);
+    --glassLine: rgba(255, 255, 255, 0.09);
+    --glow: 0 0 0 4px #fff, 0 0 34px 6px rgba(255, 255, 255, 0.32), 0 24px 48px rgba(0, 0, 0, 0.55);
+  }
+  @property --a1 { syntax: '<color>'; inherits: false; initial-value: rgba(90, 120, 255, 0.25); }
+  @property --a2 { syntax: '<color>'; inherits: false; initial-value: rgba(40, 30, 90, 0.8); }
+
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  body { font-family: Inter, "Segoe UI", system-ui, sans-serif; color: var(--ink); -webkit-font-smoothing: antialiased; }
+  #stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; overflow: hidden; background: #06080d; }
+  #stage.mouse-off { cursor: none; }
+  .layer { position: absolute; inset: 0; }
+  .hidden { display: none !important; }
+  .ov { opacity: 0; transition: opacity var(--d) ease; }
+  .ov.in { opacity: 1; }
+  svg { display: block; }
+
+  /* ---------- ambient colour bleed ---------- */
+  #ambient {
+    position: absolute; inset: 0;
+    transition: --a1 var(--dAmb) ease, --a2 var(--dAmb) ease;
+    background:
+      radial-gradient(60% 70% at 18% 8%, var(--a1), transparent 72%),
+      radial-gradient(70% 70% at 92% 100%, var(--a2), transparent 70%),
+      radial-gradient(120% 100% at 50% 50%, #0b0f18, #05070b);
+  }
+
+  /* ---------- shared: app icon ---------- */
+  .ico { display: grid; place-items: center; overflow: hidden; border-radius: 22%; color: #fff; line-height: 1; }
+  .ico .wm { font-family: Inter, sans-serif; font-weight: 700; text-align: center; color: #fff; }
+  .ico svg { width: 60%; height: 60%; }
+  .itvx { background: linear-gradient(90deg, #ff7a3d, #ff3d8b, #7b5cff); -webkit-background-clip: text; background-clip: text; color: transparent !important; }
+
+  /* ---------- focusables ---------- */
+  .f { transition: transform var(--d) ease-out; will-change: transform; }
+
+  /* ---------- rail ---------- */
+  /* app bar: tvOS-shaped icons (landscape 5:3 rounded rectangles) in a floating glass column */
+  #rail {
+    position: absolute; left: var(--safeX); top: var(--safeY); bottom: var(--safeY); width: 194px;
+    background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12); border-radius: 44px;
+    backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
+    box-shadow: 0 30px 60px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08);
+    z-index: 5;
+  }
+  .railClip { position: absolute; top: 0; bottom: 0; left: -40px; right: -40px; overflow: hidden;
+    -webkit-mask-image: linear-gradient(transparent 0, #000 34px, #000 calc(100% - 34px), transparent 100%);
+    mask-image: linear-gradient(transparent 0, #000 34px, #000 calc(100% - 34px), transparent 100%); }
+  #railTrack { position: relative; padding: 28px 0; transition: transform var(--dScroll) ease-out; }
+  .app { width: 150px; height: 90px; margin: 0 auto 30px; position: relative; border-radius: 20px; }
+  .app .ico { width: 150px; height: 90px; font-size: 90px; border-radius: 20px; box-shadow: 0 8px 20px rgba(0,0,0,.4); }
+  .app.focused { transform: scale(1.12); }
+  .app.focused .ico { box-shadow: var(--glow); }
+  .app.noinst .ico { opacity: .45; }
+  .app.noinst::after {
+    content: ""; position: absolute; right: -8px; bottom: -8px; width: 30px; height: 30px; border-radius: 50%;
+    background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23111' stroke-width='2.6' stroke-linecap='round'%3E%3Cpath d='M12 5v11M7 11l5 5 5-5'/%3E%3C/svg%3E") center/18px no-repeat;
+  }
+
+  /* ---------- main column ---------- */
+  #main { position: absolute; left: 274px; top: 0; right: 0; bottom: 0; overflow: hidden; }
+  #mainTrack { position: relative; padding: var(--safeY) 0 240px 40px; will-change: transform; }   /* moved by pageSpring() */
+  .topbar { height: 72px; position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; padding-right: var(--safeX); }
+  .shortcuts { display: flex; gap: 20px; }
+  .sc {
+    position: relative; display: grid; place-items: center; width: 72px; height: 72px; border-radius: 50%;
+    background: var(--glass); border: 1px solid var(--glassLine); color: var(--ink);
+  }
+  .sc svg { width: 32px; height: 32px; }
+  .sc .lbl { position: absolute; top: 82px; left: 50%; transform: translateX(-50%); font-size: 23px; font-weight: 600; color: var(--ink);
+    white-space: nowrap; opacity: 0; transition: opacity var(--d) ease; pointer-events: none; }
+  .sc.focused .lbl { opacity: 1; }
+  .sc.focused { transform: scale(1.1); background: #fff; color: #0b0f18; box-shadow: 0 0 30px 4px rgba(255,255,255,.3); }
+  .clock { font-size: 44px; font-weight: 500; letter-spacing: -.01em; display: flex; align-items: center; gap: 18px; font-variant-numeric: tabular-nums; }
+  .clock .sep { color: var(--ink3); font-weight: 300; }
+  .clock .dim { color: var(--ink2); }
+  .clock svg { width: 40px; height: 40px; display: inline-block; vertical-align: -6px; }
+  .wx { display: inline-flex; align-items: center; gap: 10px; }
+  #miniClock {
+    position: absolute; right: var(--safeX); top: 40px; z-index: 6; font-size: 34px; font-weight: 600; font-variant-numeric: tabular-nums;
+    padding: 8px 20px; border-radius: 16px; background: rgba(8,10,16,.6); opacity: 0; transition: opacity var(--d) ease;
+  }
+  #miniClock.show { opacity: 1; }
+
+  .heroWrap { display: flex; gap: var(--gap); margin-top: 40px; height: 430px; padding-right: var(--safeX); }
+  #hero { position: relative; flex: none; width: 1000px; height: 430px; border-radius: 34px; }
+  #hero .slides { position: absolute; inset: 0; border-radius: 34px; overflow: hidden; box-shadow: 0 30px 60px rgba(0,0,0,.45); }
+  #hero.focused { transform: scale(1.025); }
+  #hero.focused .slides { box-shadow: var(--glow); }
+  .slide { position: absolute; inset: 0; opacity: 0; transition: opacity 400ms ease; }
+  .slide.on { opacity: 1; }
+  .slide::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(0,0,0,.72) 0%, rgba(0,0,0,.25) 55%, transparent 80%); }
+  .slide .hinfo { position: absolute; left: 56px; bottom: 64px; z-index: 1; max-width: 640px; }
+  .hlabel { display: flex; align-items: center; gap: 12px; font-size: 25px; font-weight: 600; color: var(--ink2); text-transform: uppercase; letter-spacing: .08em; }
+  .hlabel .ico { width: 34px; height: 34px; font-size: 34px; border-radius: 9px; }
+  .htitle { margin: 14px 0 12px; line-height: .95; text-shadow: 0 4px 24px rgba(0,0,0,.5); }
+  .hblurb { font-size: 29px; line-height: 1.35; color: rgba(255,255,255,.86); }
+  .hmeta { font-size: 25px; color: var(--ink2); margin-top: 12px; }
+  .dots { position: absolute; left: 0; right: 0; bottom: 24px; display: flex; justify-content: center; gap: 10px; z-index: 2; }
+  .dots i { width: 12px; height: 12px; border-radius: 6px; background: rgba(255,255,255,.4); transition: width var(--d) ease, background var(--d) ease; }
+  .dots i.on { width: 40px; background: #fff; }
+
+  /* active panel */
+  #panel {
+    flex: none; width: 486px; min-width: 0; height: 430px; box-sizing: border-box; padding: 22px 26px; border-radius: 34px;
+    background: rgba(255,255,255,.07); border: 1px solid var(--glassLine);
+    display: flex; flex-direction: column;   /* no backdrop blur: it would be re-rendered every frame while the page moves */
+  }
+  .pn-k { font-size: 23px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--ink3); margin-bottom: 10px; }
+  .sp { display: flex; gap: 18px; align-items: center; }
+  .sp-art { width: 84px; height: 84px; border-radius: 14px; flex: none; }
+  .sp-info { flex: 1; min-width: 0; }
+  .sp-src { display: flex; align-items: center; gap: 8px; font-size: 23px; color: #1ed760; font-weight: 600; }
+  .sp-src svg { width: 20px; height: 20px; }
+  .sp-t { font-size: 26px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; }
+  .sp-a { font-size: 25px; color: var(--ink2); }
+  .sp-row { display: flex; align-items: center; gap: 14px; margin-top: 8px; }
+  .sp-bar { flex: 1; height: 6px; border-radius: 3px; background: rgba(255,255,255,.18); overflow: hidden; }
+  .sp-bar i { display: block; height: 100%; background: #fff; border-radius: 3px; }
+  .sp-time { font-size: 23px; color: var(--ink2); font-variant-numeric: tabular-nums; width: 70px; text-align: right; }
+  .ctl { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; color: #fff; }
+  .ctl svg { width: 28px; height: 28px; }
+  .ctl.focused { transform: scale(1.18); background: #fff; color: #0b0f18; box-shadow: 0 0 24px 4px rgba(255,255,255,.35); }
+  .pn-hr { height: 1px; background: var(--glassLine); margin: 12px 0; flex: none; }
+  .news { border-radius: 16px; padding: 6px 12px; margin: -6px -12px; }
+  .news-t { font-size: 25px; line-height: 1.3; font-weight: 500; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .news-s { font-size: 23px; color: var(--ink3); margin-bottom: 4px; font-weight: 600; letter-spacing: .04em; }
+  .news.focused { transform: scale(1.04); background: rgba(255,255,255,.12); box-shadow: 0 0 0 3px #fff; }
+  .today div { display: flex; gap: 12px; align-items: center; font-size: 23px; line-height: 1.45; color: rgba(255,255,255,.88); }
+  .today svg { width: 22px; height: 22px; color: var(--ink2); flex: none; }
+
+
+  /* Google Assistant answers inside the active panel */
+  #panel { position: relative; }
+  #panel.assisting > :not(#assist) { display: none; }
+  .assist { display: none; flex-direction: column; height: 100%; margin: -10px -12px; padding: 10px 12px; border-radius: 26px; }
+  #panel.assisting .assist { display: flex; animation: asIn var(--d) ease-out; }
+  @keyframes asIn { from { opacity: 0; transform: scale(.97); } }
+  .assist.focused { transform: scale(1.03); background: rgba(255,255,255,.06); box-shadow: 0 0 0 3px #fff, 0 0 34px 6px rgba(255,255,255,.25); }
+  .as-head { display: flex; align-items: center; gap: 14px; min-height: 34px; font-size: 23px; font-weight: 600; color: var(--ink2); }
+  .as-q { font-weight: 500; font-style: italic; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .as-q small { font-style: normal; font-size: 23px; color: var(--ink3); }
+  .gdots { display: flex; gap: 6px; flex: none; }
+  .gdots i { width: 11px; height: 11px; border-radius: 50%; background: #4285f4; }
+  .gdots i:nth-child(2) { background: #ea4335; } .gdots i:nth-child(3) { background: #fbbc04; } .gdots i:nth-child(4) { background: #34a853; }
+  .listening .gdots i { animation: gbounce .9s ease-in-out infinite; }
+  .listening .gdots i:nth-child(2) { animation-delay: .12s; } .listening .gdots i:nth-child(3) { animation-delay: .24s; } .listening .gdots i:nth-child(4) { animation-delay: .36s; }
+  @keyframes gbounce { 50% { transform: translateY(-10px); } }
+  .as-big { font-size: 38px; font-weight: 600; line-height: 1.2; margin-top: 46px; }
+  .as-sub { font-size: 23px; color: var(--ink2); margin-top: 12px; }
+  .as-foot { margin-top: auto; display: flex; align-items: center; gap: 14px; font-size: 23px; color: var(--ink3); }
+  .as-timer { flex: 1; height: 4px; border-radius: 2px; background: rgba(255,255,255,.12); overflow: hidden; }
+  .as-timer i { display: block; height: 100%; background: rgba(255,255,255,.6); transform-origin: left; }
+  .as-foot.counting .as-timer i { animation: astimer 30s linear forwards; }   /* starts once the answer has been read out */
+  .as-foot .eq { display: flex; align-items: flex-end; gap: 4px; height: 22px; }
+  .as-foot .eq i { width: 4px; border-radius: 2px; background: #8fb8ff; animation: eqb .7s ease-in-out infinite alternate; }
+  .as-foot .eq i:nth-child(2) { animation-delay: .2s; } .as-foot .eq i:nth-child(3) { animation-delay: .4s; } .as-foot .eq i:nth-child(4) { animation-delay: .1s; }
+  @keyframes eqb { from { height: 5px; } to { height: 22px; } }
+  .as-foot.counting .eq { display: none; }
+  @keyframes astimer { to { transform: scaleX(0); } }
+  .as-time { font-size: 112px; font-weight: 600; letter-spacing: -.02em; margin-top: 30px; font-variant-numeric: tabular-nums; line-height: 1; }
+  .as-media { position: relative; flex: 1 1 auto; min-height: 0; margin: 12px 0 14px; border-radius: 18px; overflow: hidden; background: #0b0e14; }
+  .as-media img { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .as-media .bg { object-fit: cover; filter: blur(26px) brightness(.5); transform: scale(1.25); }
+  .as-media .fg { object-fit: contain; opacity: 0; transition: opacity var(--d) ease; }
+  .as-media.ready .fg { opacity: 1; }
+  .as-media.cover .fg { object-fit: cover; object-position: 50% 20%; animation: kenburns 14s ease-in-out infinite alternate; }   /* extreme shapes only */
+  @keyframes kenburns { from { transform: scale(1.05) translate(-2%, -2%); } to { transform: scale(1.2) translate(2%, 2%); } }
+  .as-title { font-size: 29px; font-weight: 700; margin-top: 10px; }
+  .as-title small { font-size: 23px; font-weight: 500; color: var(--ink3); margin-left: 10px; }
+  .as-text { font-size: 23px; line-height: 1.3; color: rgba(255,255,255,.85); margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  /* animated weather */
+  .wx-card { display: flex; align-items: center; gap: 22px; margin-top: 10px; }
+  .wx-scene { position: relative; width: 170px; height: 150px; flex: none; }   /* no clipping: glows fade out on their own */
+  .wx-sun { position: absolute; left: 35px; top: 25px; width: 100px; height: 100px; border-radius: 50%;
+    background: radial-gradient(circle, #fff1b0 0, #ffc94d 55%, #ff9f1a 100%); }
+  /* soft round halo behind the sun, centred on it, fading to nothing well inside its own circle */
+  .wx-halo { position: absolute; left: -15px; top: -25px; width: 200px; height: 200px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,201,77,.5) 0%, rgba(255,201,77,.2) 32%, rgba(255,201,77,0) 66%);
+    animation: halo 3s ease-in-out infinite alternate; }
+  .wx-halo.small { left: -13px; top: -21px; width: 140px; height: 140px; }
+  @keyframes halo { from { opacity: .7; transform: scale(.92); } to { opacity: 1; transform: scale(1.06); } }
+  .wx-sun::before { content: ""; position: absolute; inset: -26px; border-radius: 50%;
+    background: repeating-conic-gradient(from -2deg, rgba(255,214,102,.65) 0 4deg, transparent 4.5deg 30deg);
+    -webkit-mask: radial-gradient(circle, transparent 58%, #000 63%, #000 68%, transparent 74%); mask: radial-gradient(circle, transparent 58%, #000 63%, #000 68%, transparent 74%);
+    animation: spin 14s linear infinite; }
+  .wx-sun.small { left: 22px; top: 14px; width: 70px; height: 70px; }
+  @keyframes spin { to { rotate: 360deg; } }
+  .wx-cloud { position: absolute; width: 120px; height: 46px; border-radius: 30px; background: #e3e9f3; animation: drift 6s ease-in-out infinite alternate; }
+  .wx-cloud::before { content: ""; position: absolute; left: 20px; top: -30px; width: 62px; height: 62px; border-radius: 50%; background: inherit; }
+  .wx-cloud::after { content: ""; position: absolute; left: 60px; top: -18px; width: 44px; height: 44px; border-radius: 50%; background: inherit; }
+  .wx-cloud.c1 { left: 34px; top: 72px; }
+  .wx-cloud.c2 { left: 6px; top: 40px; scale: .7; opacity: .7; animation-duration: 8s; }
+  .wx-cloud.dark { background: #8f9cb2; }
+  @keyframes drift { from { translate: -10px 0; } to { translate: 12px 0; } }
+  .drop { position: absolute; top: 104px; width: 3px; height: 16px; border-radius: 2px; background: #6fb6ff; animation: fall .9s linear infinite; }
+  @keyframes fall { from { translate: 0 0; opacity: 1; } to { translate: -6px 46px; opacity: 0; } }
+  .wx-now b { display: block; font-size: 76px; font-weight: 600; line-height: 1; }
+  .wx-now span { display: block; margin-top: 6px; font-size: 23px; color: var(--ink2); line-height: 1.3; }
+  .wx-days { display: flex; gap: 12px; margin-top: 14px; }
+  .wx-days div { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 0; border-radius: 16px; background: rgba(255,255,255,.06); font-size: 23px; }
+  .wx-days svg { width: 32px; height: 32px; }
+  .wx-days small { font-size: 23px; color: var(--ink3); }
+
+  /* rows */
+  .row { margin-top: 34px; }
+  .row h2 { margin: 0 0 4px; font-size: 38px; font-weight: 600; letter-spacing: -.01em; }
+  .row h2 span { font-size: 25px; color: var(--ink3); font-weight: 500; margin-left: 12px; }
+  .win {
+    position: relative; margin-left: -24px; padding: 24px 0 54px 0;
+    overflow-x: clip; overflow-y: visible;
+  }
+  .win::before {
+    content: ""; position: absolute; left: 0; right: 0; top: 4px; bottom: 34px;
+    background: var(--glass); border: 1px solid var(--glassLine); border-right: 0; border-radius: 30px 0 0 30px;
+  }
+  .track { position: relative; display: flex; gap: var(--gap); padding: 0 24px; transition: transform var(--dScroll) ease-out; align-items: flex-start; }
+  .tile { position: relative; width: 320px; flex: none; }
+  .tile .art {
+    position: relative; height: 180px; border-radius: 18px; overflow: hidden;
+    box-shadow: 0 10px 24px rgba(0,0,0,.4); transition: box-shadow var(--d) ease-out;
+  }
+  .tile.focused { transform: scale(1.1); z-index: 3; }
+  .tile.focused .art { box-shadow: var(--glow); }
+  .art::before { content: ""; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,.10) 42%, transparent 52%); }
+  .art::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 45%, rgba(0,0,0,.55)); }
+  .ttl { position: absolute; left: 18px; right: 18px; bottom: 16px; z-index: 1; line-height: 1; color: #fff; text-shadow: 0 2px 12px rgba(0,0,0,.5); }
+  .bebas { font-family: "Bebas Neue", Impact, sans-serif; font-size: 50px; letter-spacing: .02em; }
+  .playfair { font-family: "Playfair Display", Georgia, serif; font-weight: 700; font-size: 34px; }
+  .oswald { font-family: Oswald, "Arial Narrow", sans-serif; font-weight: 600; font-size: 32px; text-transform: uppercase; letter-spacing: .06em; }
+  .inter { font-family: Inter, sans-serif; font-weight: 800; font-size: 31px; letter-spacing: -.01em; }
+  .badge { position: absolute; top: 12px; right: 12px; z-index: 1; }
+  .badge .ico { width: 36px; height: 36px; font-size: 36px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,.4); }
+  .wlmark { position: absolute; top: 12px; left: 14px; z-index: 1; font-size: 24px; color: #ffd84d; text-shadow: 0 1px 6px rgba(0,0,0,.6); }
+  .prog { position: absolute; left: 18px; right: 18px; bottom: 12px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.3); z-index: 2; }
+  .prog i { display: block; height: 100%; border-radius: 3px; background: #fff; }
+  .tile .prog ~ .ttl, .tile .art:has(.prog) .ttl { bottom: 30px; }
+  .cap {
+    position: absolute; left: -20px; right: -20px; top: 194px; text-align: center; opacity: 0; transition: opacity var(--d) ease;
+    font-size: 25px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .cap b { font-weight: 600; }
+  .cap span { color: var(--ink2); margin-left: 10px; }
+  .tile.focused .cap { opacity: 1; }
+  .empty {
+    width: 680px; height: 180px; border-radius: 18px; border: 2px dashed rgba(255,255,255,.18);
+    display: grid; place-items: center; font-size: 24px; color: var(--ink2); flex: none;
+  }
+
+  /* devices */
+  .tile.dev { width: 560px; }
+  .tile.dev .art { height: 315px; background: #05070b; }
+  .tile.dev .cap { top: 328px; }
+  .tile.dev canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .devlbl { position: absolute; left: 20px; bottom: 18px; z-index: 2; font-size: 25px; font-weight: 600; display: flex; gap: 12px; align-items: center; }
+  .live { font-size: 16px; font-weight: 800; letter-spacing: .1em; color: #fff; background: #e5322d; padding: 4px 10px; border-radius: 8px; }
+  .muted { position: absolute; right: 18px; top: 16px; z-index: 2; width: 40px; height: 40px; border-radius: 50%; background: rgba(0,0,0,.45); display: grid; place-items: center; }
+  .muted svg { width: 22px; height: 22px; }
+  .standby { position: absolute; inset: 0; z-index: 3; display: none; place-items: center; text-align: center; background: radial-gradient(#141a26, #07090d); font-size: 26px; color: var(--ink2); }
+  .standby svg { width: 64px; height: 64px; margin: 0 auto 16px; color: var(--ink3); }
+  .ps5.off .standby { display: grid; }
+  .ps5.wake .art { animation: wake 900ms ease-out; }
+  @keyframes wake { 0% { box-shadow: 0 0 0 0 rgba(80,150,255,.9); } 100% { box-shadow: 0 0 0 40px rgba(80,150,255,0); } }
+  .tile.hdmi .art { background: linear-gradient(160deg, #1a1f2b, #0b0e14); display: grid; place-items: center; text-align: center; font-size: 24px; color: var(--ink2); }
+  .tile.hdmi svg { width: 54px; height: 54px; margin: 0 auto 10px; color: var(--ink3); }
+
+  /* tvOS focus: the item lifts, gently sways and its surface lights up (after the 160 ms scale) */
+  .app .ico, .tile .art { position: relative; }
+  .tile.focused .art, .app.focused .ico { animation: sway 4.5s ease-in-out var(--d) infinite alternate; }
+  @keyframes sway {
+    from { transform: perspective(900px) rotateX(1.5deg) rotateY(-2.5deg); }
+    to   { transform: perspective(900px) rotateX(-1.5deg) rotateY(2.5deg); }
+  }
+  .shine { position: absolute; inset: -30%; z-index: 2; pointer-events: none; opacity: 0; transition: opacity var(--d) ease;
+    background: radial-gradient(40% 35% at 35% 25%, rgba(255,255,255,.30), transparent 70%); }
+  .focused .shine { opacity: 1; animation: shine 4.5s ease-in-out var(--d) infinite alternate; }
+  @keyframes shine { from { transform: translate(-8%, -4%); } to { transform: translate(8%, 4%); } }
+
+  /* Animations off: no motion anywhere, except the Assistant's countdown line, which carries information */
+  .no-anim *, .no-anim *::before, .no-anim *::after { animation: none !important; transition: none !important; }
+  .no-anim .as-foot.counting .as-timer i { animation: astimer 30s linear forwards !important; }
+
+  /* ---------- search ---------- */
+  #search { padding: 0; }
+  .sbar {
+    position: absolute; left: var(--safeX); right: var(--safeX); top: 60px; height: 92px; box-sizing: border-box;
+    display: flex; align-items: center; gap: 22px; padding: 0 36px; border-radius: 46px;
+    background: rgba(255,255,255,.08); border: 1px solid var(--glassLine); font-size: 40px; font-weight: 500;
+    transition: border-color var(--d), box-shadow var(--d);
+  }
+  .sicon { position: relative; width: 44px; height: 44px; flex: none; color: var(--ink2); }
+  .sicon svg { width: 44px; height: 44px; }
+  .sbar .ph { color: var(--ink3); }
+  .caret { width: 3px; height: 44px; background: #fff; animation: blink 1s steps(1) infinite; margin-left: -18px; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .sbar .scope { margin-left: auto; font-size: 23px; color: var(--ink3); font-weight: 500; }
+  .smic { display: flex; align-items: center; gap: 10px; height: 60px; padding: 0 26px 0 20px; border-radius: 30px; flex: none;
+    background: rgba(91,155,255,.2); color: #d6e5ff; font-size: 23px; font-weight: 600; }
+  .smic svg { width: 28px; height: 28px; }
+  .smic.focused { transform: scale(1.1); background: #fff; color: #0b0f18; box-shadow: 0 0 24px 4px rgba(255,255,255,.3); }
+  /* listening state */
+  #search.listening .sbar { border-color: #5b9bff; box-shadow: 0 0 0 4px rgba(91,155,255,.3), 0 0 70px rgba(91,155,255,.35); }
+  #search.listening .sicon { color: #fff; }
+  #search.listening .sicon::before, #search.listening .sicon::after {
+    content: ""; position: absolute; inset: -8px; border-radius: 50%; border: 3px solid #5b9bff; animation: ring 1.2s ease-out infinite;
+  }
+  #search.listening .sicon::after { animation-delay: .6s; }
+  @keyframes ring { from { transform: scale(.7); opacity: 1; } to { transform: scale(1.6); opacity: 0; } }
+  #search.listening .caret { display: none; }
+  #search.listening #sq { color: var(--ink2); font-style: italic; }
+  .kpanel {
+    position: absolute; left: var(--safeX); top: 190px; width: 700px; box-sizing: border-box; padding: 24px;
+    border-radius: 30px; background: var(--glass); border: 1px solid var(--glassLine);
+  }
+  #kbd { display: grid; grid-template-columns: repeat(10, 58px); gap: 8px; }
+  .key { height: 58px; border-radius: 12px; display: grid; place-items: center; font-size: 28px; font-weight: 600; color: var(--ink); background: rgba(255,255,255,.06); }
+  .key.w2 { grid-column: span 2; font-size: 23px; }
+  .key.w8 { grid-column: span 8; font-size: 23px; }
+  .key svg { width: 28px; height: 28px; }
+  .key.focused { transform: scale(1.18); background: #fff; color: #0b0f18; box-shadow: 0 0 24px 4px rgba(255,255,255,.3); z-index: 1; }
+  .khint { display: flex; align-items: center; gap: 12px; margin-top: 20px; font-size: 23px; color: var(--ink2); }
+  .khint svg { width: 26px; height: 26px; color: #8fb8ff; flex: none; }
+  #sWin { position: absolute; left: 820px; right: 0; top: 176px; bottom: 0; overflow: hidden; }
+  #sTrack { position: relative; padding: 0 var(--safeX) 200px 20px; transition: transform var(--dScroll) ease-out; }
+  #sTrack h3 { font-size: 30px; font-weight: 600; margin: 14px 0 22px; }
+  #sTrack h3 span { color: var(--ink3); font-size: 25px; font-weight: 500; margin-left: 12px; }
+  #sTrack .grid + h3 { margin-top: 70px; }
+  .grid { position: relative; display: grid; grid-template-columns: repeat(4, 220px); gap: 72px var(--gap); }
+  .grid .tile { width: 220px; }
+  .grid .tile .art { height: 124px; }
+  .grid .tile .cap { top: 134px; font-size: 23px; }
+  .grid .ttl { left: 14px; right: 14px; bottom: 12px; }
+  .grid .ttl.bebas { font-size: 36px; } .grid .ttl.playfair { font-size: 24px; } .grid .ttl.oswald { font-size: 22px; } .grid .ttl.inter { font-size: 22px; }
+  .grid .badge { top: 10px; right: 10px; }
+  .grid .badge .ico { width: 28px; height: 28px; font-size: 28px; }
+  .noresults { font-size: 28px; color: var(--ink2); padding: 40px 0; }
+
+  /* ---------- detail ---------- */
+  #detail { z-index: 20; background: #05070b; }
+  .dbg { position: absolute; inset: 0; }
+  .dbg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(5,7,11,.96) 0%, rgba(5,7,11,.75) 45%, rgba(5,7,11,.15) 100%), linear-gradient(0deg, rgba(5,7,11,.9), transparent 45%); }
+  .dinfo { position: absolute; left: 160px; top: 230px; width: 960px; z-index: 1; }
+  .dinfo .htitle { margin: 18px 0 18px; }
+  .dmeta { display: flex; gap: 18px; font-size: 25px; color: var(--ink2); align-items: center; }
+  .dmeta b { color: #ffd84d; font-weight: 700; }
+  .dblurb { font-size: 30px; line-height: 1.4; color: rgba(255,255,255,.88); margin: 24px 0 40px; max-width: 880px; }
+  .dbtns { display: flex; gap: 20px; }
+  .btn {
+    display: flex; align-items: center; gap: 14px; height: 76px; padding: 0 34px; border-radius: 20px; font-size: 27px; font-weight: 700;
+    background: rgba(255,255,255,.12); color: #fff;
+  }
+  .btn .ico { width: 40px; height: 40px; font-size: 40px; border-radius: 10px; }
+  .btn svg { width: 30px; height: 30px; }
+  .btn.focused { transform: scale(1.1); background: #fff; color: #0b0f18; box-shadow: 0 0 32px 6px rgba(255,255,255,.3); }
+  .also { margin-top: 48px; }
+  .also .pn-k { margin-bottom: 16px; }
+  .chips { display: flex; gap: 14px; flex-wrap: wrap; }
+  .chip { display: flex; align-items: center; gap: 12px; padding: 10px 20px 10px 10px; border-radius: 16px; background: rgba(255,255,255,.08); font-size: 23px; font-weight: 600; }
+  .chip .ico { width: 40px; height: 40px; font-size: 40px; border-radius: 10px; }
+  .chip.off { opacity: .5; }
+  .chip small { font-weight: 500; color: var(--ink3); }
+  .chip.focused { transform: scale(1.1); background: #fff; color: #0b0f18; }
+  .chip.focused small { color: #5b6475; }
+
+  /* ---------- settings ---------- */
+  #settings { z-index: 25; background: rgba(3,4,8,.82); display: grid; place-items: center; }
+  .scard { width: 1360px; box-sizing: border-box; padding: 48px 56px; border-radius: 36px; background: #121722; border: 1px solid var(--glassLine); box-shadow: 0 40px 80px rgba(0,0,0,.6); }
+  .scard h2 { margin: 0 0 8px; font-size: 44px; }
+  .scard p { margin: 0 0 28px; font-size: 23px; color: var(--ink2); }
+  .scard h4 { margin: 30px 0 16px; font-size: 23px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink3); }
+  .opts { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
+  .opts.wide { grid-template-columns: repeat(3, 1fr); }
+  .opt.span2 { grid-column: span 2; }
+  .opt .val { max-width: 520px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .opt { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 18px; background: rgba(255,255,255,.06); font-size: 23px; font-weight: 600; }
+  .opt .ico { width: 44px; height: 44px; font-size: 44px; border-radius: 11px; flex: none; }
+  .opt b { flex: 1; font-weight: 600; }
+  .opt .val { font-size: 23px; color: var(--ink2); font-weight: 600; }
+  .sw { width: 50px; height: 30px; border-radius: 15px; background: rgba(255,255,255,.2); position: relative; flex: none; transition: background var(--d); }
+  .sw::after { content: ""; position: absolute; left: 4px; top: 4px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: transform var(--d); }
+  .sw.on { background: #34c759; }
+  .sw.on::after { transform: translateX(20px); }
+  .opt.focused { transform: scale(1.06); background: #fff; color: #0b0f18; }
+  .opt.focused .val { color: #5b6475; }
+  .opt.focused .sw:not(.on) { background: #c9ced8; }
+
+  /* ---------- app splash ---------- */
+  #splash { z-index: 40; display: grid; place-items: center; text-align: center; }
+  #splash .bgc { position: absolute; inset: 0; }
+  #splash .bgc::after { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at 50% 45%, rgba(0,0,0,.2), rgba(0,0,0,.82)); }
+  .spl { position: relative; z-index: 1; }
+  .spl .ico { width: 220px; height: 220px; font-size: 220px; margin: 0 auto 40px; border-radius: 48px; box-shadow: 0 30px 60px rgba(0,0,0,.5); animation: pop 260ms ease-out; }
+  @keyframes pop { from { transform: scale(.85); opacity: 0; } to { transform: none; opacity: 1; } }
+  .spl h1 { margin: 0; font-size: 52px; }
+  .spl p { margin: 16px auto 44px; font-size: 26px; color: var(--ink2); max-width: 900px; line-height: 1.4; }
+  .spl .dbtns { justify-content: center; }
+
+  /* ---------- boot ---------- */
+  #boot { z-index: 60; background: radial-gradient(ellipse at 50% 46%, #151b26 0%, #05070b 100%); transition: opacity 400ms ease; }
+  #boot.out { opacity: 0; }
+  #boot svg { width: 100%; height: 100%; }
+  .glyph { font-family: "Open Sans", "Segoe UI", Arial, sans-serif; font-weight: 500; font-kerning: normal; text-rendering: geometricPrecision; }
+
+  /* ---------- toast / hints / guides ---------- */
+  #toast {
+    position: absolute; right: var(--safeX); bottom: var(--safeY); z-index: 50; max-width: 760px;
+    padding: 20px 28px; border-radius: 20px; background: rgba(255,255,255,.95); color: #0b0f18; font-size: 24px; font-weight: 600;
+    box-shadow: 0 20px 50px rgba(0,0,0,.5); opacity: 0; transform: translateY(16px); transition: opacity var(--d) ease, transform var(--d) ease;
+    pointer-events: none;
+  }
+  #toast.show { opacity: 1; transform: none; }
+  #hints {
+    position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 55; display: flex; gap: 22px; white-space: nowrap;
+    padding: 12px 24px; border-radius: 16px; background: rgba(0,0,0,.72); font-size: 19px; color: var(--ink2); transition: opacity 400ms ease;
+  }
+  #hints kbd { font-family: inherit; font-weight: 700; color: #fff; background: rgba(255,255,255,.14); padding: 2px 8px; border-radius: 6px; margin-right: 6px; }
+  #hints.gone { opacity: 0; }
+  #guides { position: absolute; inset: 0; z-index: 70; pointer-events: none; }
+  #guides::before { content: ""; position: absolute; inset: var(--safeY) var(--safeX); border: 3px dashed rgba(255, 70, 70, .85); }
+  #guides::after { content: "5% overscan safe area"; position: absolute; left: var(--safeX); top: 14px; color: #ff6b6b; font-size: 20px; font-weight: 700; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="ambient"></div>
+
+  <!-- HOME -->
+  <section id="home" class="layer">
+    <nav id="rail"><div class="railClip"><div id="railTrack" data-vs="rail"></div></div></nav>
+    <div id="main">
+      <div id="mainTrack" data-vs="main">
+        <header class="topbar sec" data-top="1">
+          <div class="shortcuts" id="shortcuts"></div>
+          <div class="clock" id="clock"></div>
+        </header>
+        <div class="heroWrap sec" data-top="1">
+          <div id="hero" class="f" data-group="hero" data-nav-right="#spPlay"></div>
+          <aside id="panel"></aside>
+        </div>
+        <div id="rows"></div>
+      </div>
+    </div>
+    <div id="miniClock"></div>
+  </section>
+
+  <!-- SEARCH -->
+  <section id="search" class="layer ov hidden">
+    <div class="sbar"><span class="sicon" id="sIcon"></span><span id="sq"></span><span class="caret"></span><span class="ph" id="sph"></span><span class="scope" id="sscope"></span></div>
+    <div class="kpanel"><div id="kbd"></div><div class="khint" id="khint"></div></div>
+    <div id="sWin"><div id="sTrack" data-vs="free"></div></div>
+  </section>
+
+  <!-- DETAIL -->
+  <section id="detail" class="layer ov hidden"></section>
+
+  <!-- SETTINGS -->
+  <section id="settings" class="layer ov hidden"><div class="scard" id="scard"></div></section>
+
+  <!-- APP SPLASH -->
+  <section id="splash" class="layer ov hidden"></section>
+
+  <!-- BOOT -->
+  <section id="boot" class="layer">
+    <svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid meet" aria-label="BitTV boot animation">
+      <defs>
+        <linearGradient id="bInk" gradientUnits="userSpaceOnUse" x1="0" y1="34" x2="0" y2="453">
+          <stop offset="0" stop-color="#fbfcfe"/><stop offset="1" stop-color="#98a1ad"/>
+        </linearGradient>
+        <linearGradient id="bgA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#76b2e4"/><stop offset="1" stop-color="#5b97d1"/></linearGradient>
+        <linearGradient id="bgB" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#72aee1"/><stop offset="1" stop-color="#5994ce"/></linearGradient>
+        <linearGradient id="bgC" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#70abdf"/><stop offset="1" stop-color="#5e9bd4"/></linearGradient>
+        <linearGradient id="bgD" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#86cdf6"/><stop offset="1" stop-color="#4a86c8"/></linearGradient>
+        <linearGradient id="bSheenG" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#6cc4ff" stop-opacity="0"/><stop offset="0.5" stop-color="#6cc4ff" stop-opacity="0.95"/><stop offset="1" stop-color="#6cc4ff" stop-opacity="0"/>
+        </linearGradient>
+        <clipPath id="bClip"></clipPath>
+      </defs>
+      <g id="bLogo">
+        <g id="bWord"></g>
+        <g id="bCubes" style="isolation: isolate"></g>
+        <g clip-path="url(#bClip)" pointer-events="none">
+          <rect id="bSheen" x="0" y="-60" width="190" height="580" fill="url(#bSheenG)" visibility="hidden"/>
+        </g>
+      </g>
+    </svg>
+  </section>
+
+  <div id="toast"></div>
+  <div id="hints">
+    <span><kbd>← ↑ → ↓</kbd>Move</span><span><kbd>Enter</kbd>Select</span><span><kbd>Esc</kbd>Back</span>
+    <span><kbd>/</kbd>Search</span><span><kbd>Hold Shift</kbd>Google Assistant</span><span><kbd>M</kbd>Assistant demo</span><span><kbd>W</kbd>Watch Later</span><span><kbd>P</kbd>PS5 on/off</span><span><kbd>G</kbd>Overscan</span><span><kbd>H</kbd>Hide hints</span>
+  </div>
+  <div id="guides" class="hidden"></div>
+</div>
+
+<script>
+(() => {
+'use strict';
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const h = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+
+/* ---------- storage (per-browser convenience only) ---------- */
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('bittv.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('bittv.' + k, JSON.stringify(v)); } catch (e) { /* ignore */ } },
+};
+
+/* ---------- colour helpers ---------- */
+const rgb = (hex) => { const n = parseInt(hex.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
+const rgba = (hex, a) => `rgba(${rgb(hex).join(',')},${a})`;
+const mixA = (hex, amt, a = 1) => { const t = amt < 0 ? 0 : 255, k = Math.abs(amt); return `rgba(${rgb(hex).map((v) => Math.round(v + (t - v) * k)).join(',')},${a})`; };
+
+/* ---------- icons ---------- */
+const ic = (p, sw = 1.9) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+const I = {
+  search: ic('<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>'),
+  cast: ic('<path d="M3 18a3 3 0 0 1 3 3M3 14a7 7 0 0 1 7 7M3 10a11 11 0 0 1 11 11"/><path d="M3 7V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>'),
+  globe: ic('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>'),
+  media: ic('<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m10 9 5 3-5 3z"/>'),
+  settings: ic('<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>'),
+  prev: ic('<path d="M19 5 9 12l10 7zM5 5v14" fill="currentColor"/>', 1.5),
+  next: ic('<path d="m5 5 10 7-10 7zM19 5v14" fill="currentColor"/>', 1.5),
+  play: ic('<path d="M7 4.5v15l12-7.5z" fill="currentColor"/>', 1.5),
+  pause: ic('<path d="M7 4.5h3.5v15H7zM13.5 4.5H17v15h-3.5z" fill="currentColor"/>', 1.2),
+  star: ic('<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/>'),
+  starF: ic('<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z" fill="currentColor"/>'),
+  back: ic('<path d="M15 5 8 12l7 7"/>'),
+  clock: ic('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+  cal: ic('<rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M3 10h18M8 3v4M16 3v4"/>'),
+  power: ic('<path d="M12 3v8M6.3 6.3a8 8 0 1 0 11.4 0"/>'),
+  hdmi: ic('<path d="M3 8h18v5l-3 3H6l-3-3z"/><path d="M7 11h10"/>'),
+  muted: ic('<path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path d="m16 9 5 6M21 9l-5 6"/>'),
+  mic: ic('<rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/>', 2),
+  sun: '<svg viewBox="0 0 24 24" fill="none" stroke="#ffc94d" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="4.5" fill="#ffc94d"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
+  cloud: '<svg viewBox="0 0 24 24" fill="#c9d3e3"><path d="M7 19h10.5a4.5 4.5 0 0 0 .6-9A6.5 6.5 0 0 0 5.8 11.6 3.8 3.8 0 0 0 7 19z"/></svg>',
+  rain: '<svg viewBox="0 0 24 24" fill="#c9d3e3" stroke="#6fb6ff" stroke-width="1.8" stroke-linecap="round"><path stroke="none" d="M7 15h10.5a4.5 4.5 0 0 0 .6-9A6.5 6.5 0 0 0 5.8 7.6 3.8 3.8 0 0 0 7 15z"/><path d="M8 18l-1 3M12 18l-1 3M16 18l-1 3"/></svg>',
+};
+const G = {
+  spotify: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#1ed760"/><path d="M6 9.2c3.8-1.1 8.2-.8 11.8 1M6.7 12.4c3.1-.9 6.8-.6 9.8.9M7.4 15.4c2.5-.6 5.2-.4 7.6.7" stroke="#121212" stroke-width="1.7" fill="none" stroke-linecap="round"/></svg>',
+  smarttube: '<svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="4" fill="#fff"/><path d="M10 9v6l5-3z" fill="#e62117"/></svg>',
+  playstore: '<svg viewBox="0 0 24 24"><path d="M4 2.6 13.4 12 4 21.4z" fill="#4285f4"/><path d="M4 2.6 16.4 9l-3 3z" fill="#34a853"/><path d="M4 21.4 13.4 12l3 3z" fill="#ea4335"/><path d="M16.4 9l4.1 2.2q1.1.8 0 1.6L16.4 15l-3-3z" fill="#fbbc04"/></svg>',
+  remote: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7"><rect x="7" y="2.5" width="10" height="19" rx="5"/><circle cx="12" cy="8" r="2" fill="#4fc3f7" stroke="none"/><path d="M10 13h4M10 16h4" stroke-linecap="round"/></svg>',
+  globe: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>',
+  media: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m10 9 5 3-5 3z" fill="#fff"/></svg>',
+};
+
+/* ---------- apps (the rail) ---------- */
+const APPS = [
+  { id: 'netflix', name: 'Netflix', bg: '#000', g: '<span style="color:#e50914;font:400 .8em \'Bebas Neue\',Impact,sans-serif">N</span>' },
+  { id: 'prime', name: 'Prime Video', bg: '#0f171e', g: '<span class="wm" style="font-size:.22em;line-height:1.05">prime<br><span style="color:#1a98ff">video</span></span>' },
+  { id: 'now', name: 'NOW', bg: '#000', g: '<span class="wm" style="font-size:.3em;font-weight:800;letter-spacing:.02em">NOW</span>' },
+  { id: 'paramount', name: 'Paramount+', bg: 'linear-gradient(160deg,#0064ff,#0a2a8a)', g: '<span class="wm" style="font-size:.36em">P+</span>', inst: false },
+  { id: 'appletv', name: 'Apple TV', bg: '#000', g: '<span class="wm" style="font-size:.38em;font-weight:600">tv</span>' },
+  { id: 'spotify', name: 'Spotify', bg: '#121212', g: G.spotify },
+  { id: 'smarttube', name: 'SmartTube', bg: '#e62117', g: G.smarttube },
+  { id: 'disney', name: 'Disney+', bg: 'linear-gradient(160deg,#0b1c4f,#1f5fe0)', g: '<span class="wm" style="font:italic 700 .34em \'Playfair Display\',serif">D+</span>' },
+  { id: 'tubi', name: 'Tubi', bg: '#7408ff', g: '<span class="wm" style="font-size:.32em;font-weight:800;color:#fff200">tubi</span>' },
+  { id: 'itvx', name: 'ITVX', bg: '#000', g: '<span class="wm itvx" style="font-size:.28em;font-weight:800">ITVX</span>' },
+  { id: 'la7', name: 'La7', bg: '#fff', g: '<span class="wm" style="font-size:.34em;font-weight:800;color:#111">La<span style="color:#d7141a">7</span></span>' },
+  { id: 'raiplay', name: 'RaiPlay', bg: '#0a2d6e', g: '<span class="wm" style="font-size:.2em;font-weight:800">Rai<span style="font-weight:400">Play</span></span>' },
+  { id: 'playstore', name: 'Play Store', bg: '#fff', g: G.playstore },
+  { id: 'buttonmapper', name: 'Button Mapper', bg: '#263238', g: G.remote },
+];
+APPS.forEach((a) => { if (a.inst === undefined) a.inst = true; });
+const APP = Object.fromEntries(APPS.map((a) => [a.id, a]));
+APP.browser = { id: 'browser', name: 'Browser', bg: 'linear-gradient(160deg,#1a73e8,#0b3d91)', g: G.globe, inst: true };
+APP.media = { id: 'media', name: 'Media Player', bg: 'linear-gradient(160deg,#ff8a00,#c2410c)', g: G.media, inst: true };
+const STREAMING = ['netflix', 'prime', 'now', 'paramount', 'appletv', 'disney', 'tubi', 'itvx', 'la7', 'raiplay'];
+const FREE = ['tubi', 'itvx', 'la7', 'raiplay'];
+const icon = (a, size) => `<span class="ico" style="background:${a.bg}${size ? `;width:${size}px;height:${size}px;font-size:${size}px` : ''}">${a.g}</span>`;
+
+/* ---------- dummy catalogue (fictional titles) ---------- */
+const CATALOG = [
+  ['epidemic', 'Epidemic', 'series', 'Sci-Fi,Drama', 'netflix', '#12333f', '#d0453a', 2026, 8.4, 'bebas', 'A virologist races a contagion that rewrites the memories of everyone it touches.'],
+  ['eclipse', 'Eclipse', 'movie', 'Sci-Fi,Thriller', 'appletv', '#1c2747', '#f0a35e', 2025, 8.1, 'playfair', 'When the sun goes dark for nine days, a city has to decide who it trusts.'],
+  ['northernline', 'Northern Line', 'series', 'Crime,Drama', 'itvx', '#1d2b33', '#6fb3c9', 2024, 7.9, 'inter', 'A transport cop follows a string of disappearances along the last train out of London.'],
+  ['longtide', 'The Long Tide', 'series', 'Drama', 'now', '#13293d', '#8fc1d4', 2025, 8.6, 'playfair', 'Three generations of a fishing family hold on as the sea takes their village.'],
+  ['kingsguard', 'Kingsguard', 'series', 'Fantasy,Action', 'prime', '#2a1a10', '#e09b3d', 2026, 8.2, 'bebas', 'The last sworn knight of a fallen crown escorts its heir across a burning kingdom.'],
+  ['loworbit', 'Low Orbit', 'movie', 'Sci-Fi,Adventure', 'disney', '#0b1d3a', '#57a6ff', 2025, 7.7, 'oswald', 'A repair crew stranded above Earth has ninety minutes to bring themselves home.'],
+  ['ironveil', 'Iron Veil', 'movie', 'Action,Thriller', 'netflix,prime', '#26170f', '#ff6a2b', 2024, 7.4, 'bebas', 'An ex-operative is pulled back for one extraction that was never meant to succeed.'],
+  ['quietfield', 'Quiet Field', 'movie', 'Horror', 'now', '#1a1d14', '#9fb36b', 2023, 7.2, 'playfair', 'Something in the barley answers back.'],
+  ['bakehouse', 'The Bakehouse', 'series', 'Comedy', 'itvx,netflix', '#3a2414', '#f2c46d', 2024, 7.8, 'inter', 'A chaotic family bakery in Leeds tries to survive its own owners.'],
+  ['grandeur', 'Small Grandeur', 'series', 'Comedy,Drama', 'appletv', '#2b1f3a', '#e7a6d8', 2026, 8.3, 'playfair', 'A disgraced hotelier gets one last chance running the smallest hotel in Europe.'],
+  ['lisbon', 'Last Stop Lisbon', 'movie', 'Romance,Comedy', 'prime', '#3b1f24', '#ffb38a', 2025, 7.1, 'playfair', 'Two strangers miss the same train and spend one long day in Lisbon.'],
+  ['deepline', 'Deepline', 'series', 'Thriller', 'netflix', '#06222b', '#2ec4b6', 2025, 8.0, 'oswald', 'A research station at the bottom of the Atlantic goes silent.'],
+  ['hollowcrown', 'Hollow Crown Hill', 'series', 'Mystery', 'disney', '#1e1a2e', '#b39ddb', 2024, 7.6, 'playfair', 'A village where every house keeps one secret, and one of them is murder.'],
+  ['overtime', 'Overtime', 'movie', 'Sport,Drama', 'now', '#10261a', '#46d17a', 2023, 7.3, 'bebas', 'A non-league side goes on the cup run of the century.'],
+  ['ducklings', 'Ducklings', 'series', 'Kids,Comedy', 'disney', '#1f3b5c', '#ffd54f', 2025, 7.5, 'inter', 'Five ducklings, one pond, endless trouble.'],
+  ['piccolomondo', 'Il Piccolo Mondo', 'series', 'Drama', 'raiplay', '#2b2416', '#e6c07b', 2024, 7.9, 'playfair', 'Una famiglia di Como attraversa il dopoguerra tra segreti e speranze.'],
+  ['commissario', 'Commissario Neri', 'series', 'Crime', 'raiplay', '#1b1f2a', '#c94f4f', 2025, 8.0, 'oswald', 'A Napoli, un commissario testardo riapre un caso chiuso da vent’anni.'],
+  ['propaganda', 'Propaganda Live', 'series', 'Talk,Comedy', 'la7', '#2a0f12', '#ff4d5a', 2026, 8.2, 'bebas', 'La settimana raccontata con satira, musica e ospiti.'],
+  ['piazza', 'Piazza Aperta', 'series', 'News,Talk', 'la7', '#0f1e2e', '#4aa3df', 2026, 7.0, 'inter', 'Inchieste e dibattito sui temi della settimana.'],
+  ['roadkings', 'Road Kings', 'movie', 'Action', 'tubi', '#2a1d0d', '#ffa31a', 2019, 6.8, 'bebas', 'Desert racers, stolen cash and a very angry sheriff.'],
+  ['diner', 'Midnight Diner', 'movie', 'Comedy', 'tubi', '#1a1430', '#ff7ad9', 2021, 6.9, 'inter', 'One night shift, five customers, zero working fryers.'],
+  ['redharbour', 'Red Harbour', 'series', 'Crime,Thriller', 'paramount', '#2d0d0d', '#ff3b3b', 2025, 8.1, 'oswald', 'A port city where the docks run on favours.'],
+  ['dustfrontier', 'Dust Frontier', 'series', 'Western,Drama', 'paramount', '#3a2a17', '#e5a663', 2024, 8.0, 'playfair', 'Settlers, cattle and a railroad nobody asked for.'],
+  ['skyward', 'Skyward', 'movie', 'Animation,Family', 'disney,appletv', '#10325a', '#7fd3ff', 2025, 7.8, 'inter', 'A girl builds wings from her grandfather’s old kites.'],
+  ['static', 'Static', 'series', 'Sci-Fi,Mystery', 'appletv', '#101418', '#9ad1ff', 2026, 8.5, 'oswald', 'A radio host starts receiving calls from next week.'],
+  ['harbourlights', 'Harbour Lights', 'series', 'Drama,Romance', 'itvx', '#14283d', '#ffcf8a', 2023, 7.4, 'playfair', 'A Cornish lifeboat crew and the town that depends on them.'],
+  ['nightshift', 'Night Shift', 'series', 'Comedy', 'now', '#161a2f', '#8c9eff', 2025, 7.7, 'bebas', 'The worst-run hospital night shift in Britain.'],
+  ['vanta', 'Vanta', 'movie', 'Action,Sci-Fi', 'prime', '#0c0c14', '#a07bff', 2026, 7.5, 'oswald', 'A thief steals a material that swallows light, and the light wants it back.'],
+  ['wildcoast', 'Wild Coast', 'series', 'Documentary', 'netflix,now', '#0d2a24', '#6ee7b7', 2024, 8.7, 'inter', 'A year on the wildest shoreline of the British Isles.'],
+  ['laughtrack', 'Laugh Track', 'movie', 'Comedy', 'netflix', '#3a1d0b', '#ffb547', 2025, 7.0, 'bebas', 'A failing stand-up accidentally becomes a cult leader.'],
+  ['marlowe', 'The Marlowe Affair', 'movie', 'Mystery,Thriller', 'itvx', '#1b1b1b', '#d4af37', 2022, 7.6, 'playfair', 'A 1950s jewel theft with one too many suspects.'],
+  ['tenements', 'Tenements', 'series', 'Drama,Crime', 'now', '#22201c', '#c8a27a', 2024, 8.3, 'oswald', 'Glasgow, 1972: one building, one summer, one fire.'],
+  ['zerohour', 'Zero Hour', 'movie', 'Action', 'paramount', '#10131a', '#ff8c42', 2025, 7.2, 'bebas', 'Twelve minutes to stop a bridge from falling.'],
+  ['spacepuppies', 'Space Puppies', 'series', 'Kids,Animation', 'disney', '#1a1446', '#ffe066', 2025, 7.3, 'inter', 'Three puppies, one rocket, a galaxy of snacks.'],
+].map(([id, title, type, genres, svc, c1, c2, year, score, font, blurb]) => ({ id, title, type, genres: genres.split(','), svc: svc.split(','), c1, c2, year, score, font, blurb }));
+const CAT = Object.fromEntries(CATALOG.map((t) => [t.id, t]));
+const CW = [
+  { id: 'epidemic', p: 0.62, sub: 'S1 · E5 · 21 min left' },
+  { id: 'eclipse', p: 0.4, sub: '1 h 12 min left' },
+  { id: 'kingsguard', p: 0.75, sub: 'S2 · E3 · 14 min left' },
+  { id: 'propaganda', p: 0.5, sub: 'Ep. 12 · 48 min left' },
+  { id: 'northernline', p: 0.2, sub: 'S1 · E2 · 38 min left' },
+  { id: 'deepline', p: 0.3, sub: 'S1 · E1 · 33 min left' },
+  { id: 'redharbour', p: 0.55, sub: 'S1 · E4 · 25 min left' },
+];
+const CWmap = Object.fromEntries(CW.map((c) => [c.id, c]));
+
+/* ---------- state ---------- */
+const S = {
+  scale: 1, focus: null, mem: {}, stack: [], booting: true,
+  subs: store.get('subs', ['netflix', 'prime', 'now', 'appletv', 'disney', 'tubi', 'itvx', 'la7', 'raiplay']),
+  wl: store.get('wl', ['longtide', 'loworbit', 'grandeur', 'commissario', 'static']),
+  ambient: store.get('ambient', true),
+  anim: store.get('anim', true),
+  ps5: true, heroIdx: 0, heroItems: [], q: '',
+  sp: { playing: true, i: 0, pos: 83 },
+};
+const avail = (t) => t.svc.some((s) => S.subs.includes(s));
+const mainSvc = (t) => APP[t.svc.find((s) => S.subs.includes(s)) || t.svc[0]];
+const meta = (t) => `${t.year} · ${t.type === 'series' ? 'Series' : 'Movie'} · ${t.genres.join(', ')}`;
+
+/* ---------- stage scaling ---------- */
+const stage = $('#stage');
+function fit() {
+  const s = Math.min(innerWidth / 1920, innerHeight / 1080);
+  S.scale = s;
+  stage.style.transform = `translate(${(innerWidth - 1920 * s) / 2}px, ${(innerHeight - 1080 * s) / 2}px) scale(${s})`;
+}
+addEventListener('resize', fit); fit();
+
+// Settings → Animations: off makes every change instant and stills all motion
+function applyAnim() {
+  const r = document.documentElement.style;
+  r.setProperty('--d', S.anim ? '160ms' : '0ms');
+  r.setProperty('--dScroll', S.anim ? '200ms' : '0ms');
+  r.setProperty('--dAmb', S.anim ? '350ms' : '0ms');
+  stage.classList.toggle('no-anim', !S.anim);
+}
+applyAnim();
+
+/* ---------- ambient colour bleed ---------- */
+const amb = $('#ambient');
+function setAmbient(c1, c2) {
+  if (!S.ambient || !c1) { amb.style.removeProperty('--a1'); amb.style.removeProperty('--a2'); return; }
+  amb.style.setProperty('--a1', rgba(c2, 0.34));
+  amb.style.setProperty('--a2', mixA(c1, 0.18, 0.92));
+}
+
+/* ---------- poster art ---------- */
+function artBg(t) {
+  return `background:
+    radial-gradient(110% 90% at 80% 15%, ${rgba(t.c2, 0.85)} 0%, ${rgba(t.c2, 0)} 55%),
+    radial-gradient(80% 90% at 8% 100%, ${mixA(t.c1, 0.12)} 0%, transparent 70%),
+    linear-gradient(160deg, ${mixA(t.c1, 0.2)} 0%, ${t.c1} 50%, ${mixA(t.c1, -0.55)} 100%)`;
+}
+const heroSize = { bebas: 130, playfair: 92, oswald: 82, inter: 84 };
+
+/* ======================================================================
+   FOCUS ENGINE — spatial navigation, like a TV remote
+   ====================================================================== */
+const LAYERS = { home: $('#home'), search: $('#search'), detail: $('#detail'), settings: $('#settings'), splash: $('#splash') };
+const topLayer = () => S.stack[S.stack.length - 1];
+const focusables = () => $$('.f', topLayer().el).filter((e) => e.offsetParent !== null);
+
+function setFocus(el, opts = {}) {
+  if (!el) return;
+  if (S.focus && S.focus !== el) S.focus.classList.remove('focused');
+  S.focus = el;
+  el.classList.add('focused');
+  const g = el.dataset.group || '';
+  S.mem[g] = el;
+  if (topLayer().name === 'home' && g !== 'rail') S.mem.main = el;
+  if (!opts.noScroll) ensureVisible(el);
+  if (el.dataset.c1) setAmbient(el.dataset.c1, el.dataset.c2);
+}
+
+function gap(a1, a2, b1, b2) { return Math.max(0, Math.max(a1, b1) - Math.min(a2, b2)); }
+function move(dir) {
+  const cur = S.focus;
+  const list = focusables();
+  if (!cur || !list.includes(cur)) { setFocus(defaultFocus()); return; }
+  const jump = cur.dataset['nav' + dir[0].toUpperCase() + dir.slice(1)];   // explicit links, e.g. hero → Spotify
+  if (jump && $(jump) && $(jump).offsetParent) { setFocus($(jump)); return; }
+  const r = cur.getBoundingClientRect();
+  const cx = (r.left + r.right) / 2, cy = (r.top + r.bottom) / 2;
+  let best = null, bs = Infinity;
+  const horiz = dir === 'left' || dir === 'right', inRail = cur.dataset.group === 'rail';
+  for (const e of list) {
+    if (e === cur) continue;
+    if (!horiz && (e.dataset.group === 'rail') !== inRail) continue;   // the rail is its own column
+    const q = e.getBoundingClientRect();
+    const qx = (q.left + q.right) / 2, qy = (q.top + q.bottom) / 2;
+    let main, orth;
+    // a candidate must lie past the current item's edge (30px slack for the focus scale-up)
+    if (dir === 'right') { if (q.left < r.right - 30 || qx <= cx) continue; main = Math.max(0, q.left - r.right); orth = gap(q.top, q.bottom, r.top, r.bottom); }
+    else if (dir === 'left') { if (q.right > r.left + 30 || qx >= cx) continue; main = Math.max(0, r.left - q.right); orth = gap(q.top, q.bottom, r.top, r.bottom); }
+    else if (dir === 'down') { if (q.top < r.bottom - 30 || qy <= cy) continue; main = Math.max(0, q.top - r.bottom); orth = gap(q.left, q.right, r.left, r.right); }
+    else { if (q.bottom > r.top + 30 || qy >= cy) continue; main = Math.max(0, r.top - q.bottom); orth = gap(q.left, q.right, r.left, r.right); }
+    if (horiz && orth > 0) continue;                                   // left/right never changes row
+    const score = horiz ? main : main * 1.5 + orth;                    // up/down: nearest row, then closest tile
+    if (score < bs) { bs = score; best = e; }
+  }
+  if (!best && inRail && dir === 'right') best = S.mem.main && S.mem.main.isConnected ? S.mem.main : $('#hero');
+  if (!best) return;
+  const cg = cur.dataset.group, bg = best.dataset.group;
+  // remember the last spot when jumping between rail and content
+  if (bg === 'rail' && cg !== 'rail' && S.mem.rail && S.mem.rail.isConnected) best = S.mem.rail;
+  else if (cg === 'rail' && bg !== 'rail' && S.mem.main && S.mem.main.isConnected && inView(S.mem.main)) best = S.mem.main;
+  setFocus(best);
+}
+function inView(el) {
+  const r = el.getBoundingClientRect(), s = stage.getBoundingClientRect();
+  return r.bottom > s.top && r.top < s.bottom && r.right > s.left && r.left < s.right;
+}
+function relTop(el, anc) { let y = 0, e = el; while (e && e !== anc) { y += e.offsetTop; e = e.offsetParent; } return y; }
+
+// Vertical page movement: a critically damped spring that can be retargeted mid-flight, so a new press
+// keeps the current speed instead of restarting the animation (how tvOS / Leanback scrolling feels)
+const pageSpring = (() => {
+  const K = 340, C = 2 * Math.sqrt(K);          // stiffness and critical damping: ~95% there in 0.26 s, no bounce
+  let pos = 0, vel = 0, target = 0, raf = 0, last = 0, node = null;
+  const draw = () => { node.style.transform = `translate3d(0, ${pos.toFixed(2)}px, 0)`; };
+  function step(now) {
+    const dt = Math.min(0.032, (now - last) / 1000);
+    last = now;
+    vel += (K * (target - pos) - C * vel) * dt;
+    pos += vel * dt;
+    if (Math.abs(target - pos) < 0.5 && Math.abs(vel) < 8) { pos = target; vel = 0; }
+    draw();
+    raf = pos === target && !vel ? 0 : requestAnimationFrame(step);
+  }
+  return (el, y) => {
+    node = el; target = y;
+    if (!S.anim) { cancelAnimationFrame(raf); raf = 0; pos = y; vel = 0; draw(); return; }
+    if (!raf) { last = performance.now(); raf = requestAnimationFrame(step); }
+  };
+})();
+
+function ensureVisible(el) {
+  const track = el.parentElement && el.parentElement.classList.contains('track') ? el.parentElement : null;
+  if (track) {
+    const W = track.parentElement.clientWidth;
+    let s = +track.dataset.s || 0;
+    const L = el.offsetLeft, R = L + el.offsetWidth, peek = 240;
+    if (L - s < 24) s = L - 24;
+    else if (R - s > W - peek) s = R - (W - peek);
+    s = Math.max(0, s);
+    track.dataset.s = s;
+    track.style.transform = `translateX(${-s}px)`;
+  }
+  const vs = el.closest('[data-vs]');
+  if (!vs) return;
+  const mode = vs.dataset.vs, H = vs.parentElement.clientHeight;
+  let y = +vs.dataset.y || 0;
+  if (mode === 'main') {
+    // focus line = where the first row rests on screen, so every press below it moves exactly one row
+    const sec = el.closest('.sec'), first = $('#rows .sec');
+    y = !sec || sec.dataset.top || !first ? 0 : -(relTop(sec, vs) - relTop(first, vs));
+    // a taller row (Devices) rises just enough to stay inside the bottom safe area
+    if (sec && !sec.dataset.top) y = Math.min(y, 1080 - 60 - (relTop(sec, vs) + sec.offsetHeight));
+    $('#miniClock').classList.toggle('show', y < -120);
+    vs.dataset.y = y;
+    pageSpring(vs, y);
+    return;
+  } else {
+    const m = mode === 'rail' ? 40 : 70;
+    const top = relTop(el, vs), bot = top + el.offsetHeight;
+    if (top + y < m) y = m - top;
+    if (bot + y > H - m - 40) y = H - m - 40 - bot;
+    y = Math.min(0, y);
+  }
+  vs.dataset.y = y;
+  vs.style.transform = `translateY(${y}px)`;
+}
+
+function defaultFocus() {
+  const L = topLayer();
+  if (L.name === 'home') return $('#hero');
+  return $('.f', L.el);
+}
+function activate() { if (S.focus && S.focus._act) S.focus._act(); }
+
+/* ---------- layers ---------- */
+function pushLayer(name, focusEl) {
+  const el = LAYERS[name];
+  S.stack.push({ name, el, prev: S.focus });
+  el.classList.remove('hidden');
+  void el.offsetWidth;
+  el.classList.add('in');
+  if (name === 'search') LAYERS.home.classList.add('hidden');
+  setFocus(focusEl || $('.f', el));
+}
+function back() {
+  if (S.stack.length === 1) {   // Back on Home: return to the top
+    setFocus($('#hero'));
+    return;
+  }
+  const L = S.stack.pop();
+  L.el.classList.remove('in');
+  L.el.classList.add('hidden');
+  if (L.name === 'search') LAYERS.home.classList.remove('hidden');
+  const p = L.prev;
+  if (p && p.isConnected && topLayer().el.contains(p)) setFocus(p); else setFocus(defaultFocus());
+}
+const fx = (el, group, act) => { el.classList.add('f'); el.dataset.group = group; el._act = act; return el; };
+
+/* ======================================================================
+   HOME
+   ====================================================================== */
+function buildRail() {
+  const track = $('#railTrack');
+  track.innerHTML = '';
+  APPS.forEach((a) => {
+    const el = fx(h('div', 'app' + (a.inst ? '' : ' noinst'), icon(a).replace(/<\/span>$/, '<i class="shine"></i></span>')), 'rail', () => launch(a));
+    el._app = a;
+    track.append(el);
+  });
+}
+
+function buildTop() {
+  const wrap = $('#shortcuts');
+  const items = [
+    ['Search', I.search, () => openSearch()],
+    ['Cast', I.cast, () => toast('Ready to cast — “BitTV” is visible to phones on your Wi-Fi')],
+    ['Browser', I.globe, () => launch(APP.browser)],
+    ['Media', I.media, () => launch(APP.media)],
+    ['Settings', I.settings, () => openSettings()],
+  ];
+  items.forEach(([label, svg, act]) => wrap.append(fx(h('div', 'sc', `${svg}<span class="lbl">${label}</span>`), 'top', act)));
+}
+
+/* clock + weather */
+let weather = { temp: null, icon: I.cloud };
+function pad(n) { return String(n).padStart(2, '0'); }
+function tickClock() {
+  const d = new Date();
+  const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const date = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+  const wx = weather.temp == null ? '' : `<span class="sep">|</span><span class="wx">${weather.icon}${weather.temp}°C</span>`;
+  $('#clock').innerHTML = `<span>${time}</span><span class="sep">|</span><span class="dim">${date}</span>${wx}`;
+  $('#miniClock').textContent = time;
+}
+const wxKind = (c) => c <= 1 ? 'sun' : (c <= 48 || (c >= 71 && c <= 77) || c === 85 || c === 86) ? 'cloud' : 'rain';
+const WXNAME = { sun: 'Sunny', cloud: 'Cloudy', rain: 'Rain' };
+async function loadWeather() {
+  try {
+    const ctl = new AbortController(); setTimeout(() => ctl.abort(), 5000);
+    const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=51.51&longitude=-0.13&current=temperature_2m,weather_code'
+      + '&daily=weather_code,temperature_2m_max,temperature_2m_min&forecast_days=4&timezone=Europe%2FLondon', { signal: ctl.signal });
+    const j = await r.json(), d = j.daily;
+    weather = {
+      temp: Math.round(j.current.temperature_2m), kind: wxKind(j.current.weather_code),
+      days: d.time.map((t, i) => ({ date: new Date(t), kind: wxKind(d.weather_code[i]), hi: Math.round(d.temperature_2m_max[i]), lo: Math.round(d.temperature_2m_min[i]) })),
+    };
+  } catch (e) {
+    const day = (n) => new Date(Date.now() + n * 864e5);
+    weather = { temp: 12, kind: 'cloud', days: [['cloud', 13, 7], ['rain', 12, 6], ['sun', 14, 5], ['cloud', 11, 6]].map(([kind, hi, lo], i) => ({ date: day(i), kind, hi, lo })) };
+  }
+  weather.icon = I[weather.kind];
+  tickClock();
+}
+
+/* hero slideshow */
+let heroTimer = 0;
+function buildHero() {
+  const hero = $('#hero');
+  S.heroItems = CATALOG.filter(avail).sort((a, b) => b.score - a.score).slice(0, 5);
+  S.heroIdx = 0;
+  hero.innerHTML = `<div class="slides">${S.heroItems.map((t, i) => {
+    const a = mainSvc(t);
+    return `<div class="slide${i ? '' : ' on'}" style="${artBg(t)}"><div class="hinfo">
+      <div class="hlabel">${icon(a)} Featured on ${a.name}</div>
+      <div class="htitle ${t.font}" style="font-size:${heroSize[t.font]}px">${t.title}</div>
+      <div class="hblurb">${t.blurb}</div><div class="hmeta">${meta(t)}</div></div></div>`;
+  }).join('')}</div><div class="dots">${S.heroItems.map((_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('')}</div>`;
+  hero._act = () => openDetail(S.heroItems[S.heroIdx]);
+  showSlide(0);
+  clearInterval(heroTimer);
+  heroTimer = setInterval(() => showSlide((S.heroIdx + 1) % S.heroItems.length), 7000);
+}
+function showSlide(i) {
+  S.heroIdx = i;
+  $$('#hero .slide').forEach((s, k) => s.classList.toggle('on', k === i));
+  $$('#hero .dots i').forEach((s, k) => s.classList.toggle('on', k === i));
+  const t = S.heroItems[i], hero = $('#hero');
+  hero.dataset.c1 = t.c1; hero.dataset.c2 = t.c2;
+  if (S.focus === hero) setAmbient(t.c1, t.c2);
+}
+
+/* active panel */
+const TRACKS = [
+  { t: 'Midnight Drive', a: 'Neon Coast', len: 214, c1: '#2b1055', c2: '#ff5fa2' },
+  { t: 'Glass Harbour', a: 'The Low Tides', len: 187, c1: '#0e3b4a', c2: '#5ad1e6' },
+  { t: 'Saturday Light', a: 'Marlow & Vine', len: 241, c1: '#3a2410', c2: '#ffb347' },
+];
+const NEWS = [
+  ['Space mission returns safely after 200 days in orbit', 'BBC News · 12 min ago'],
+  ['Clocks went back overnight — here is what changes', 'The Guardian · 1 h ago'],
+  ['Storm warning issued for the north-west this week', 'Met Office · 2 h ago'],
+  ['Serie A: late winner settles the derby', 'Gazzetta · 3 h ago'],
+];
+let newsIdx = 0;
+function buildPanel() {
+  const p = $('#panel');
+  p.innerHTML = `
+    <div class="sp"><div class="sp-art" id="spArt"></div>
+      <div class="sp-info"><div class="sp-src">${G.spotify}Spotify</div><div class="sp-t" id="spT"></div><div class="sp-a" id="spA"></div></div></div>
+    <div class="sp-row" id="spCtl"></div>
+    <div class="pn-hr"></div>
+    <div class="news" id="news"><div class="news-s" id="newsS"></div><div class="news-t" id="newsT"></div></div>
+    <div class="pn-hr"></div>
+    <div class="today" id="today"></div>
+    <div class="assist" id="assist"></div>`;
+  const ctl = $('#spCtl');
+  const mk = (svg, act) => fx(h('div', 'ctl', svg), 'panel', act);
+  ctl.append(
+    mk(I.prev, () => { S.sp.i = (S.sp.i + TRACKS.length - 1) % TRACKS.length; S.sp.pos = 0; renderSpotify(); }),
+    S.playBtn = Object.assign(mk(I.pause, () => { S.sp.playing = !S.sp.playing; renderSpotify(); }), { id: 'spPlay' }),
+    mk(I.next, () => { S.sp.i = (S.sp.i + 1) % TRACKS.length; S.sp.pos = 0; renderSpotify(); }),
+  );
+  ctl.append(h('div', 'sp-bar', '<i id="spBar"></i>'), h('div', 'sp-time', '<span id="spTime"></span>'));
+  fx($('#news'), 'panel', () => toast('Would open the full story in the browser'));
+  fx($('#assist'), 'panel', () => Assist.dismiss());
+  renderSpotify(); renderNews(); renderToday();
+}
+function fmt(s) { return `${Math.floor(s / 60)}:${pad(Math.floor(s % 60))}`; }
+function renderSpotify() {
+  const tr = TRACKS[S.sp.i];
+  $('#spArt').style.background = `radial-gradient(circle at 70% 25%, ${tr.c2}, transparent 60%), linear-gradient(160deg, ${tr.c1}, #000)`;
+  $('#spT').textContent = tr.t; $('#spA').textContent = tr.a;
+  $('#spBar').style.width = (S.sp.pos / tr.len * 100) + '%';
+  $('#spTime').textContent = '-' + fmt(tr.len - S.sp.pos);
+  S.playBtn.innerHTML = S.sp.playing ? I.pause : I.play;
+}
+function renderNews() { $('#newsT').textContent = NEWS[newsIdx][0]; $('#newsS').textContent = 'News · ' + NEWS[newsIdx][1]; }
+function renderToday() {
+  const now = new Date(), day = 864e5;
+  const mid = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diff = (d) => Math.round((mid(d) - mid(now)) / day);
+  const lastSun = (y, m) => { const d = new Date(y, m + 1, 0); d.setDate(d.getDate() - d.getDay()); return d; };
+  const items = [];
+  [[lastSun(now.getFullYear(), 9), 'back'], [lastSun(now.getFullYear(), 2), 'forward']].forEach(([d, w]) => {
+    const n = diff(d);
+    if (n === 0) items.push([I.clock, `Clocks went ${w} 1 hr last night`]);
+    else if (n === 1) items.push([I.clock, `Clocks go ${w} 1 hr tonight`]);
+    else if (n > 1 && n <= 7) items.push([I.clock, `Clocks go ${w} in ${n} days`]);
+  });
+  const ev = [[9, 31, 'Halloween'], [10, 5, 'Bonfire Night'], [11, 25, 'Christmas'], [11, 31, 'New Year’s Eve'], [1, 14, 'Valentine’s Day']]
+    .map(([m, d, name]) => { let dt = new Date(now.getFullYear(), m, d); if (diff(dt) < 0) dt = new Date(now.getFullYear() + 1, m, d); return [diff(dt), name]; })
+    .sort((a, b) => a[0] - b[0]);
+  ev.slice(0, Math.max(0, 2 - items.length)).forEach(([n, name]) => items.push([I.cal, n === 0 ? `It’s ${name} today` : `${n} day${n > 1 ? 's' : ''} until ${name}`]));
+  $('#today').innerHTML = items.map(([i, t]) => `<div>${i}<span>${t}</span></div>`).join('');
+}
+
+/* tiles + rows */
+function tile(t, group, o = {}) {
+  const a = mainSvc(t);
+  const el = fx(h('div', 'tile'), group, () => openDetail(t));
+  el.dataset.c1 = t.c1; el.dataset.c2 = t.c2; el._t = t;
+  const star = o.star && S.wl.includes(t.id) ? '<span class="wlmark">★</span>' : '';
+  el.innerHTML = `<div class="art" style="${artBg(t)}"><i class="shine"></i><div class="ttl ${t.font}">${t.title}</div><span class="badge">${icon(a)}</span>${star}
+    ${o.p != null ? `<div class="prog"><i style="width:${o.p * 100}%"></i></div>` : ''}</div>
+    <div class="cap"><b>${t.title}</b><span>${o.sub || a.name}</span></div>`;
+  return el;
+}
+function buildRows() {
+  const rows = $('#rows');
+  rows.innerHTML = '';
+  const pool = CATALOG.filter(avail);
+  const cwIds = new Set(CW.map((c) => c.id));
+  const defs = [
+    { k: 'wl', title: 'Watch Later', items: S.wl.map((id) => CAT[id]).filter(Boolean).map((t) => [t, {}]), empty: 'Nothing saved yet — press W on any title (★ in its page) to keep it here', top: true },
+    { k: 'cw', title: 'Continue Watching', items: CW.map((c) => CAT[c.id]).filter(avail).map((t) => [t, { p: CWmap[t.id].p, sub: CWmap[t.id].sub, star: 1 }]) },
+    { k: 'dev', title: 'Devices', devices: true },
+    { k: 'sug', title: 'Suggested for you', note: 'only from your apps', items: pool.filter((t) => !cwIds.has(t.id)).sort((a, b) => b.score - a.score).slice(0, 12).map((t) => [t, { star: 1 }]) },
+    { k: 'series', title: 'Series', items: pool.filter((t) => t.type === 'series').map((t) => [t, { star: 1 }]) },
+    { k: 'movies', title: 'Movies', items: pool.filter((t) => t.type === 'movie').map((t) => [t, { star: 1 }]) },
+    { k: 'comedy', title: 'Comedy — Series & Movies', items: pool.filter((t) => t.genres.includes('Comedy')).map((t) => [t, { star: 1 }]) },
+    { k: 'it', title: 'Dall’Italia', note: 'La7 · RaiPlay', items: pool.filter((t) => t.svc.some((s) => s === 'la7' || s === 'raiplay')).map((t) => [t, { star: 1 }]) },
+    { k: 'free', title: 'Free to watch', note: 'Tubi · ITVX · La7 · RaiPlay', items: pool.filter((t) => t.svc.some((s) => FREE.includes(s))).map((t) => [t, { star: 1 }]) },
+  ];
+  defs.forEach((d) => {
+    if (!d.devices && !d.empty && !d.items.length) return;
+    const sec = h('section', 'row sec');
+    if (d.top) sec.dataset.top = '1';
+    sec.dataset.k = d.k;
+    sec.append(h('h2', '', d.title + (d.note ? `<span>${d.note}</span>` : '')));
+    const win = h('div', 'win'), track = h('div', 'track');
+    win.append(track); sec.append(win);
+    const group = 'row-' + d.k;
+    if (d.devices) buildDevices(track, group);
+    else if (!d.items.length) track.append(h('div', 'empty', d.empty));
+    else d.items.forEach(([t, o]) => track.append(tile(t, group, o)));
+    rows.append(sec);
+  });
+}
+
+/* devices — live HDMI preview */
+let ps5Canvas = null;
+function buildDevices(track, group) {
+  const el = fx(h('div', 'tile dev ps5' + (S.ps5 ? '' : ' off')), group, () => {
+    if (S.ps5) launch({ name: 'PlayStation 5', bg: 'linear-gradient(160deg,#0b2a6b,#003791)', g: '<span class="wm" style="font-size:.26em">PS5</span>', inst: true }, 'Switching to HDMI 1 — full screen, sound on');
+    else toast('PS5 is in standby — press its PS button (or P here) to wake it');
+  });
+  el.dataset.c1 = '#0b2a6b'; el.dataset.c2 = '#2f7bff';
+  el.innerHTML = `<div class="art"><canvas width="560" height="315"></canvas>
+    <div class="devlbl"><span class="live">LIVE</span>PlayStation 5 · HDMI 1</div><div class="muted">${I.muted}</div>
+    <div class="standby"><div>${I.power}PlayStation 5 is in standby</div></div></div>
+    <div class="cap"><b>PlayStation 5</b><span>Select to switch input</span></div>`;
+  ps5Canvas = $('canvas', el);
+  const hd = fx(h('div', 'tile hdmi'), group, () => toast('Nothing is connected to HDMI 2'));
+  hd.innerHTML = `<div class="art"><div>${I.hdmi}HDMI 2<br><span style="font-size:23px;color:var(--ink3)">No signal</span></div></div><div class="cap"><b>HDMI 2</b><span>No signal</span></div>`;
+  track.append(el, hd);
+}
+const GAMES = ['Astro’s Playroom', 'Gran Turismo 7', 'EA Sports FC', 'Spider-Man 2', 'Returnal', 'Ratchet & Clank'];
+const GAMECOL = ['#3aa0ff', '#d6362e', '#25c26e', '#c3122f', '#7b4dff', '#ff9f1a'];
+function drawPS5(t) {
+  if (!ps5Canvas || !S.ps5 || LAYERS.home.classList.contains('hidden') || !inView(ps5Canvas)) return;
+  const c = ps5Canvas.getContext('2d'), w = 560, hh = 315;
+  const g = c.createLinearGradient(0, 0, w, hh); g.addColorStop(0, '#04102e'); g.addColorStop(1, '#0b3a8c');
+  c.fillStyle = g; c.fillRect(0, 0, w, hh);
+  for (let i = 0; i < 3; i++) {
+    c.beginPath(); c.moveTo(0, hh);
+    for (let x = 0; x <= w; x += 10) c.lineTo(x, hh * 0.6 + Math.sin(x / 90 + t * 0.6 + i * 1.7) * 16 + i * 22);
+    c.lineTo(w, hh); c.closePath(); c.fillStyle = `rgba(80,150,255,${0.08 + i * 0.05})`; c.fill();
+  }
+  const sel = Math.floor(t / 2.4) % GAMES.length;
+  let x = 28;
+  GAMES.forEach((_, i) => {
+    const s = i === sel ? 78 : 58, y = i === sel ? 62 : 72;
+    c.fillStyle = GAMECOL[i];
+    c.beginPath(); (c.roundRect ? c.roundRect(x, y, s, s, 12) : c.rect(x, y, s, s)); c.fill();
+    if (i === sel) { c.strokeStyle = '#fff'; c.lineWidth = 3; c.stroke(); }
+    x += s + 14;
+  });
+  c.fillStyle = '#fff'; c.font = '600 22px Inter, sans-serif'; c.fillText(GAMES[sel], 28, 180);
+  c.fillStyle = 'rgba(255,255,255,.65)'; c.font = '15px Inter, sans-serif'; c.fillText('Resume · Trophies 62%', 28, 204);
+  const d = new Date(); c.font = '600 16px Inter, sans-serif'; c.fillStyle = '#fff'; c.fillText(`${pad(d.getHours())}:${pad(d.getMinutes())}`, w - 130, 40);
+}
+function togglePS5() {
+  S.ps5 = !S.ps5;
+  const el = $('.ps5');
+  if (!el) return;
+  el.classList.toggle('off', !S.ps5);
+  el.classList.remove('wake'); void el.offsetWidth;
+  if (S.ps5) { el.classList.add('wake'); toast('PlayStation 5 is on — live preview on Home'); }
+  else toast('PlayStation 5 went to standby');
+}
+
+/* rebuild home while keeping focus in place */
+function rebuildHome() {
+  const f = S.focus, g = f && f.dataset.group, idx = f ? $$(`[data-group="${g}"]`).indexOf(f) : -1;
+  const homeFocused = f && LAYERS.home.contains(f);
+  buildHero(); buildRows();
+  $$('#mainTrack .track').forEach((t) => { t.dataset.s = 0; });
+  if (homeFocused && !f.isConnected) {
+    const same = $$(`[data-group="${g}"]`);
+    setFocus(same[Math.min(idx, same.length - 1)] || $('#hero'));
+  }
+  // keep stale layer return-focus pointers valid
+  S.stack.forEach((L) => { if (L.prev && !L.prev.isConnected) L.prev = null; });
+}
+
+/* watch later */
+function toggleWL(t, quiet) {
+  const i = S.wl.indexOf(t.id);
+  if (i >= 0) S.wl.splice(i, 1); else S.wl.unshift(t.id);
+  store.set('wl', S.wl);
+  if (!quiet) toast(i >= 0 ? `Removed “${t.title}” from Watch Later` : `Saved “${t.title}” to Watch Later`);
+  rebuildHome();
+  return i < 0;
+}
+
+/* ======================================================================
+   SEARCH — only titles available on your apps
+   ====================================================================== */
+const KEYROWS = ['1234567890', 'qwertyuiop', 'asdfghjkl-', 'zxcvbnm\'.⌫'];
+function buildKbd() {
+  const k = $('#kbd');
+  KEYROWS.forEach((row) => [...row].forEach((c) => {
+    k.append(fx(h('div', 'key', c === '⌫' ? '⌫' : c.toUpperCase()), 'kbd', () => typeKey(c)));
+  }));
+  k.append(
+    fx(h('div', 'key w8', 'space'), 'kbd', () => typeKey(' ')),
+    fx(h('div', 'key w2', 'clear'), 'kbd', () => typeKey('⌧')),
+  );
+  $('#khint').innerHTML = `${I.mic}<span>Press Speak to search by voice</span>`;
+  $('#sIcon').innerHTML = I.search;
+  $('.sbar').append(fx(h('div', 'smic', I.mic + '<span>Speak</span>'), 'sbar', () => micStart('tap')));
+}
+function openSearch() {
+  S.q = '';
+  renderSearch();
+  pushLayer('search', $$('#kbd .key')[10]);   // the Q key
+}
+
+/* ---------- voice: hold the remote's mic button (Shift in this prototype) ---------- */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const DEMO_VOICE = ['crime series', 'the long tide', 'comedy movies', 'sci-fi on apple tv', 'commissario'];
+let rec = null, demoIdx = 0;
+function micStart(mode) {
+  if (S.listening) return;
+  if (topLayer().name !== 'search') {
+    while (S.stack.length > 1) back();
+    openSearch();
+  }
+  S.listening = true; S.voice = ''; S.voiceErr = null; S.micMode = mode; S.holding = mode === 'hold'; S.recEnded = false;
+  LAYERS.search.classList.add('listening');
+  $('#sIcon').innerHTML = I.mic;
+  $('#sq').textContent = '';
+  $('#sph').textContent = 'Listening…';
+  $('#sph').classList.remove('hidden');
+  rec = null;
+  if (SR) {
+    try {
+      rec = new SR();
+      rec.lang = 'en-GB'; rec.interimResults = true; rec.continuous = mode === 'hold';
+      rec.onresult = (e) => {
+        S.voice = [...e.results].map((r) => r[0].transcript).join('');
+        $('#sq').textContent = S.voice; $('#sph').classList.add('hidden');
+      };
+      rec.onerror = (e) => { S.voiceErr = e.error; };
+      // while the button is still held, keep listening on screen until it is released
+      rec.onend = () => { S.recEnded = true; if (!S.holding) micFinish(); };
+      rec.start();
+    } catch (e) { rec = null; }
+  }
+  if (!rec && mode === 'tap') setTimeout(micFinish, 1800);   // no speech engine: simulate a short utterance
+}
+function micStop() {
+  if (!S.listening) return;
+  S.holding = false;
+  if (rec && !S.recEnded) { try { rec.stop(); } catch (e) { micFinish(); } }
+  else micFinish();
+}
+function micFinish() {
+  if (!S.listening) return;
+  S.listening = false;
+  LAYERS.search.classList.remove('listening');
+  $('#sIcon').innerHTML = I.search;
+  let text = S.voice.trim();
+  if (!text) {
+    // speech unavailable here (file://, no mic permission, no network): fake a phrase so the flow can be judged
+    text = DEMO_VOICE[demoIdx++ % DEMO_VOICE.length];
+    toast(SR && S.voiceErr !== 'not-allowed' && S.voiceErr !== 'network' ? `Didn’t catch that — demo phrase: “${text}”` : `Voice not available in this browser — demo phrase: “${text}”`);
+  }
+  S.q = text.toLowerCase().replace(/[^\w\s'.-]/g, '');
+  renderSearch();
+  const first = $('#sTrack .tile');
+  setFocus(first || $$('#kbd .key')[10]);
+}
+function typeKey(c) {
+  if (c === '⌫') S.q = S.q.slice(0, -1);
+  else if (c === '⌧') S.q = '';
+  else if (S.q.length < 40) S.q += c;
+  renderSearch();
+}
+// spoken queries are phrases ("sci-fi on apple tv"), so match word by word
+const STOP = new Set(['the', 'a', 'an', 'on', 'in', 'of', 'and', 'to', 'for', 'with', 'me', 'i', 'show', 'shows', 'find', 'watch', 'play', 'want', 'some', 'something', 'search', 'please']);
+const squash = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+function tokMatch(t, tok) {
+  const stem = tok.replace(/s$/, '');
+  return t.title.toLowerCase().includes(tok)
+    || t.genres.some((g) => squash(g).startsWith(squash(stem)))
+    || t.svc.some((s) => S.subs.includes(s) && squash(APP[s].name).startsWith(squash(tok)))
+    || (tok === 'series' && t.type === 'series') || (/^(movie|film)s?$/.test(tok) && t.type === 'movie')
+    || (/^(tv|apple)$/.test(tok) && t.svc.includes('appletv'));
+}
+function renderSearch() {
+  $('#sq').textContent = S.q;
+  $('#sph').textContent = 'Search your apps, or press Speak';
+  $('#sph').classList.toggle('hidden', !!S.q);
+  $('#sscope').textContent = `${S.subs.length} apps`;
+  const q = S.q.trim().toLowerCase();
+  const pool = CATALOG.filter(avail);
+  let res;
+  if (!q) res = [...pool].sort((a, b) => b.score - a.score);
+  else {
+    const toks = q.split(/\s+/).filter((w) => w && !STOP.has(w));
+    const scored = pool.map((t) => ({ t, n: toks.filter((k) => tokMatch(t, k)).length, phrase: t.title.toLowerCase().includes(q) }));
+    let hits = scored.filter((s) => s.phrase || (toks.length && s.n === toks.length));
+    if (!hits.length) hits = scored.filter((s) => s.n > 0);   // nothing matches every word: best partial matches
+    res = hits.sort((a, b) => (b.phrase - a.phrase) || (b.n - a.n) || b.t.score - a.t.score).map((s) => s.t);
+  }
+  const genres = new Set(res.slice(0, 3).flatMap((t) => t.genres));
+  const ids = new Set(res.map((t) => t.id));
+  const sim = q ? pool.filter((t) => !ids.has(t.id) && t.genres.some((g) => genres.has(g))).slice(0, 12) : [];
+  const track = $('#sTrack');
+  track.innerHTML = '';
+  track.dataset.y = 0; track.style.transform = '';
+  track.append(h('h3', '', q ? `Results for “${S.q.trim()}”<span>${res.length} on your apps</span>` : 'Top picks on your apps'));
+  if (!res.length) track.append(h('div', 'noresults', `Nothing on your apps matches “${S.q.trim()}”. Hidden apps can be switched on in Settings.`));
+  const grid = h('div', 'grid'); res.forEach((t) => grid.append(tile(t, 'sres', { star: 1 }))); track.append(grid);
+  if (sim.length) {
+    track.append(h('h3', '', 'Similar Content'));
+    const g2 = h('div', 'grid'); sim.forEach((t) => g2.append(tile(t, 'ssim', { star: 1 }))); track.append(g2);
+  }
+}
+
+/* ======================================================================
+   DETAIL / SETTINGS / APP SPLASH
+   ====================================================================== */
+function openDetail(t) {
+  const d = LAYERS.detail;
+  const a = mainSvc(t), cw = CWmap[t.id];
+  const saved = S.wl.includes(t.id);
+  d.innerHTML = `<div class="dbg" style="${artBg(t)}"></div><div class="dinfo">
+    <div class="hlabel">${icon(a)} ${a.name}</div>
+    <div class="htitle ${t.font}" style="font-size:${heroSize[t.font] * 1.1}px">${t.title}</div>
+    <div class="dmeta"><b>★ ${t.score.toFixed(1)}</b><span>${meta(t)}</span>${cw ? `<span>· ${cw.sub}</span>` : ''}</div>
+    <div class="dblurb">${t.blurb}</div><div class="dbtns" id="dbtns"></div>
+    <div class="also"><div class="pn-k">Available on</div><div class="chips" id="chips"></div></div></div>`;
+  const btns = $('#dbtns', d);
+  const play = fx(h('div', 'btn', `${icon(a)}${cw ? 'Resume' : 'Play'} on ${a.name}`), 'dbtn', () => launch(a, `Playing “${t.title}”${cw ? ' · ' + cw.sub : ''}`));
+  const wl = fx(h('div', 'btn', (saved ? I.starF : I.star) + (saved ? 'In Watch Later' : 'Watch Later')), 'dbtn', () => {
+    const now = toggleWL(t);
+    wl.innerHTML = (now ? I.starF : I.star) + (now ? 'In Watch Later' : 'Watch Later');
+  });
+  const bk = fx(h('div', 'btn', I.back + 'Back'), 'dbtn', back);
+  btns.append(play, wl, bk);
+  const chips = $('#chips', d);
+  t.svc.forEach((s) => {
+    const app = APP[s], on = S.subs.includes(s);
+    chips.append(fx(h('div', 'chip' + (on ? '' : ' off'), `${icon(app)}${app.name}<small>${on ? (FREE.includes(s) ? 'Free' : 'Subscribed') : 'Not subscribed'}</small>`), 'chips',
+      () => launch(app, `Opening “${t.title}”`)));
+  });
+  d.dataset.c1 = t.c1;
+  setAmbient(t.c1, t.c2);
+  pushLayer('detail', play);
+}
+
+function openSettings() {
+  renderSettings();
+  pushLayer('settings');
+}
+function renderSettings(keepIdx) {
+  const card = $('#scard');
+  card.innerHTML = `<h2>Settings</h2><p>Only titles from apps switched on here appear in Suggested, the banner and Search.</p>
+    <h4>Your apps &amp; subscriptions</h4><div class="opts" id="optSubs"></div>
+    <h4>Google Assistant</h4><div class="opts wide" id="optAs"></div>
+    <h4>Experience</h4><div class="opts wide" id="optExp"></div>`;
+  STREAMING.forEach((s) => {
+    const a = APP[s], on = S.subs.includes(s);
+    $('#optSubs').append(fx(h('div', 'opt', `${icon(a)}<b>${a.name}</b><i class="sw${on ? ' on' : ''}"></i>`), 'set', () => {
+      S.subs = on ? S.subs.filter((x) => x !== s) : S.subs.concat(s);
+      store.set('subs', S.subs);
+      rebuildHome(); renderSettings(true);
+    }));
+  });
+  const exp = [
+    ['Ambient colour bleed', `<i class="sw${S.ambient ? ' on' : ''}"></i>`, () => { S.ambient = !S.ambient; store.set('ambient', S.ambient); setAmbient(); }],
+    ['Animations', `<i class="sw${S.anim ? ' on' : ''}"></i>`, () => { S.anim = !S.anim; store.set('anim', S.anim); applyAnim(); }],
+    ['Overscan guides', `<i class="sw${$('#guides').classList.contains('hidden') ? '' : ' on'}"></i>`, () => $('#guides').classList.toggle('hidden')],
+    ['PlayStation 5 power (simulate)', `<i class="sw${S.ps5 ? ' on' : ''}"></i>`, togglePS5],
+    ['Replay boot animation', '<span class="val">Play</span>', () => { back(); playBoot(); }],
+    ['Reset Watch Later', '<span class="val">Reset</span>', () => { S.wl = []; store.set('wl', S.wl); rebuildHome(); toast('Watch Later cleared'); }],
+  ];
+  const vs = assistantVoices(), cur = pickVoice();
+  const as = [
+    ['Voice', `<span class="val">${cur ? esc(voiceLabel(cur)) : 'Device default'}</span>`, () => {
+      if (!vs.length) { toast('No voices are installed in this browser. The TV uses its own Google voices'); return; }
+      const next = vs[(vs.indexOf(cur) + 1) % vs.length];
+      S.voice = next.name; store.set('voice', S.voice);
+      Assist.sample();
+    }, 'span2'],
+    ['Hear a sample', '<span class="val">Play</span>', () => Assist.sample()],
+  ];
+  as.forEach(([label, right, act, cls]) => {
+    $('#optAs').append(fx(h('div', 'opt' + (cls ? ' ' + cls : ''), `<b>${label}</b>${right}`), 'set', () => { act(); if (S.stack.some((L) => L.name === 'settings')) renderSettings(true); }));
+  });
+  exp.forEach(([label, right, act]) => {
+    $('#optExp').append(fx(h('div', 'opt', `<b>${label}</b>${right}`), 'set', () => { act(); if (S.stack.some((L) => L.name === 'settings')) renderSettings(true); }));
+  });
+  if (keepIdx && S.focus) {
+    const i = S.lastSetIdx || 0;
+    setFocus($$('.opt', card)[i]);
+  }
+}
+
+function launch(a, line) {
+  const sp = LAYERS.splash;
+  if (!a.inst) {
+    sp.innerHTML = `<div class="bgc" style="background:linear-gradient(160deg,#1e2a3a,#0b0f18)"></div><div class="spl">
+      <h1>${a.name} isn’t installed</h1><p></p><div class="dbtns" id="splBtns"></div></div>`;
+    const inst = fx(h('div', 'btn', `Install ${a.name}`), 'spl', () => {
+      a.inst = true; buildRail(); back(); toast(`${a.name} installed`);
+    });
+    $('#splBtns', sp).append(inst, fx(h('div', 'btn', I.back + 'Back'), 'spl', back));
+    pushLayer('splash', inst);
+    return;
+  }
+  sp.innerHTML = `<div class="bgc" style="background:${a.bg}"></div><div class="spl">${icon(a)}
+    <h1>Opening ${a.name}</h1><p>${line || `In the real BitTV this hands straight over to ${a.name}.`}<br>Press Back to return to BitTV.</p><div class="dbtns" id="splBtns"></div></div>`;
+  const b = fx(h('div', 'btn', I.back + 'Back to BitTV'), 'spl', back);
+  $('#splBtns', sp).append(b);
+  pushLayer('splash', b);
+}
+
+/* ======================================================================
+   GOOGLE ASSISTANT — the remote's mic button (hold Shift here). The answer takes over the
+   active panel for 30 s; selecting the panel closes it straight away.
+   ====================================================================== */
+// Assistant voice (Settings): English voices installed on the device, British ones first
+function assistantVoices() {
+  if (!window.speechSynthesis) return [];
+  const all = speechSynthesis.getVoices(), en = all.filter((v) => /^en/i.test(v.lang));
+  return (en.length ? en : all).slice().sort((a, b) => (b.lang === 'en-GB') - (a.lang === 'en-GB'));
+}
+function pickVoice() {
+  const vs = assistantVoices(), saved = store.get('voice', '');
+  return vs.find((v) => v.name === saved) || vs.find((v) => v.lang === 'en-GB') || vs[0] || null;
+}
+const voiceLabel = (v) => `${v.name.replace(/^(Google|Microsoft)\s+/, '')} · ${v.lang}`;
+if (window.speechSynthesis) speechSynthesis.addEventListener('voiceschanged', () => {
+  if (S.stack.some((L) => L.name === 'settings')) renderSettings(true);   // voices arrive asynchronously
+});
+const esc = (t) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const Assist = (() => {
+  // scripted examples (M key, or when no speech engine is available); wx forces a weather animation
+  const DEMO = [
+    { q: 'What’s the weather like today?', wx: 'sun' },
+    { q: 'Will it rain tomorrow?', wx: 'rain' },
+    { q: 'Is it cloudy outside?', wx: 'cloud' },
+    { q: 'Who was Leonardo da Vinci?' },
+    { q: 'How tall is the Eiffel Tower?' },
+    { q: 'What time is it?' },
+  ];
+  const SHOW_FOR = 30000;
+  const dots = '<span class="gdots"><i></i><i></i><i></i><i></i></span>';
+  let rec = null, demo = 0, timer = 0, holding = false, ended = false, text = '', gen = 0;
+  const A = { listening: false };
+  const show = (html) => { $('#panel').classList.add('assisting'); $('#assist').innerHTML = html; };
+
+  A.start = () => {
+    if (A.listening || S.booting) return;
+    while (S.stack.length > 1) back();          // answers live on Home, like the system overlay would
+    clearTimeout(timer); gen++;
+    if (window.speechSynthesis) speechSynthesis.cancel();
+    A.listening = true; holding = true; ended = false; text = '';
+    show(`<div class="as-head listening">${dots}<span>Google Assistant</span></div>
+      <div class="as-big" id="asQ">Hi, how can I help?</div><div class="as-sub">Listening… let go of the mic when you’re done</div>`);
+    rec = null;
+    if (SR) {
+      try {
+        rec = new SR();
+        rec.lang = 'en-GB'; rec.interimResults = true; rec.continuous = true;
+        rec.onresult = (e) => { text = [...e.results].map((r) => r[0].transcript).join(''); $('#asQ').textContent = text; };
+        rec.onend = () => { ended = true; if (!holding) finish(); };
+        rec.start();
+      } catch (e) { rec = null; }
+    }
+  };
+  A.sample = () => { if (window.speechSynthesis) speechSynthesis.cancel(); speak('Hi! This is how I’ll sound when I answer your questions.'); };
+  // M key: play the next example as if it had been spoken
+  A.demo = () => {
+    if (A.listening || S.booting) return;
+    const item = DEMO[demo++ % DEMO.length];
+    while (S.stack.length > 1) back();
+    clearTimeout(timer);
+    if (window.speechSynthesis) speechSynthesis.cancel();
+    const my = ++gen;
+    A.listening = true;
+    show(`<div class="as-head listening">${dots}<span>Google Assistant</span></div>
+      <div class="as-big" id="asQ">Hi, how can I help?</div><div class="as-sub">Listening…</div>`);
+    const words = item.q.split(' ');
+    words.forEach((_, i) => setTimeout(() => {
+      if (my === gen) $('#asQ').textContent = words.slice(0, i + 1).join(' ');
+    }, 700 + i * 220));
+    setTimeout(() => { if (my === gen) finish(item); }, 700 + words.length * 220 + 500);
+  };
+  A.stop = () => {
+    if (!A.listening) return;
+    holding = false;
+    if (rec && !ended) { try { rec.stop(); } catch (e) { finish(); } } else finish();
+  };
+  A.dismiss = () => {
+    clearTimeout(timer); gen++;
+    if (window.speechSynthesis) speechSynthesis.cancel();
+    const wasFocused = S.focus === $('#assist');
+    $('#panel').classList.remove('assisting');
+    $('#assist').innerHTML = '';
+    if (wasFocused) setFocus($('#spPlay'));
+  };
+
+  async function finish(item) {
+    if (!A.listening) return;
+    A.listening = false;
+    const my = gen;
+    let q = text.trim(), note = '';
+    if (item || !q) {                             // scripted example, or no speech engine here
+      item = item || DEMO[demo++ % DEMO.length];
+      q = item.q; note = '<small> demo</small>';
+    }
+    const head = `<div class="as-head">${dots}<span class="as-q">“${esc(q)}”${note}</span></div>`;
+    show(head + '<div class="as-sub">One moment…</div>');
+    let ans;
+    if (/weather|rain|sunny|cloudy|temperature|umbrella|forecast|\bcold\b|\bhot\b/i.test(q)) ans = weatherCard(q, item && item.wx);
+    else if (/\btime\b/i.test(q)) ans = timeCard();
+    else ans = await questionCard(q);
+    if (my !== gen) return;                       // dismissed or asked again meanwhile
+    show(`${head}${ans.html}<div class="as-foot"><span class="eq"><i></i><i></i><i></i><i></i></span>
+      <span class="as-fl">Speaking…</span><div class="as-timer"><i></i></div></div>`);
+    if (ans.media) fitMedia(ans);
+    // the answer is read out first; the 30 s countdown (and its line) only starts afterwards
+    await speak(ans.say);
+    if (my !== gen) return;
+    const foot = $('#assist .as-foot');
+    foot.classList.add('counting');
+    $('.as-fl', foot).textContent = 'OK to close';
+    timer = setTimeout(A.dismiss, SHOW_FOR);
+  }
+
+  function speak(say) {
+    const est = 1500 + say.split(/\s+/).length * 380;          // rough reading time, used as a safety net
+    return new Promise((resolve) => {
+      let done = false;
+      const end = () => { if (!done) { done = true; resolve(); } };
+      setTimeout(end, est + 2500);
+      if (!window.speechSynthesis) { setTimeout(end, est); return; }
+      speechSynthesis.cancel();
+      try {
+        const u = new SpeechSynthesisUtterance(say);
+        const v = pickVoice();
+        u.lang = v ? v.lang : 'en-GB';
+        if (v) u.voice = v;
+        u.onend = end; u.onerror = () => setTimeout(end, est);   // no voice installed: still wait as if read
+        speechSynthesis.speak(u);
+      } catch (e) { setTimeout(end, est); }
+    });
+  }
+
+  // show the whole picture over a blurred copy of itself; crop only when its shape is extreme
+  function fitMedia(ans) {
+    const box = $('#assist .as-media');
+    if (!box) return;
+    const fg = $('img.fg', box), bg = $('img.bg', box);
+    let fellBack = false;
+    fg.onload = () => {
+      const ar = fg.naturalWidth / fg.naturalHeight, boxAr = box.clientWidth / box.clientHeight;
+      const shown = Math.min(ar / boxAr, boxAr / ar);            // share of the box a whole picture fills
+      box.classList.toggle('cover', shown < 0.35);
+      box.classList.add('ready');
+    };
+    fg.onerror = () => {
+      // Wikimedia only serves fixed thumbnail widths: retry with the default one, then fall back to text
+      if (!fellBack && ans.thumb) { fellBack = true; fg.src = bg.src = ans.thumb; return; }
+      box.outerHTML = ans.textHtml;
+    };
+  }
+
+  function weatherCard(q, force) {
+    const tmr = /tomorrow/i.test(q) && weather.days ? weather.days[1] : null;
+    const kind = force || (tmr ? tmr.kind : weather.kind);
+    const drops = Array.from({ length: 14 }, (_, i) => `<i class="drop" style="left:${8 + i * 6}%;animation-delay:${(i * 0.13) % 0.9}s"></i>`).join('');
+    const scene = {
+      sun: '<div class="wx-halo"></div><div class="wx-sun"></div>',
+      cloud: '<div class="wx-halo small"></div><div class="wx-sun small"></div><div class="wx-cloud c2"></div><div class="wx-cloud c1"></div>',
+      rain: '<div class="wx-cloud c2 dark"></div><div class="wx-cloud c1 dark"></div>' + drops,
+    }[kind];
+    const days = (weather.days || []).slice(1, 4).map((d) =>
+      `<div><span>${d.date.toLocaleDateString('en-GB', { weekday: 'short' })}</span>${I[d.kind]}<span><b>${d.hi}°</b> <small>${d.lo}°</small></span></div>`).join('');
+    const temp = tmr ? tmr.hi : weather.temp;
+    const feel = { sun: 'sunny', cloud: 'cloudy', rain: 'rainy' }[kind];
+    return {
+      html: `<div class="wx-card"><div class="wx-scene">${scene}</div><div class="wx-now"><b>${temp}°</b>
+        <span>${tmr ? 'Tomorrow' : 'Now'} · ${WXNAME[kind]}<br>London</span></div></div><div class="wx-days">${days}</div>`,
+      say: tmr ? `Tomorrow in London it will be ${feel}, with a high of ${tmr.hi} and a low of ${tmr.lo} degrees.`
+        : `Right now in London it's ${feel} and ${temp} degrees.`,
+    };
+  }
+  function timeCard() {
+    const d = new Date();
+    return {
+      html: `<div class="as-time">${pad(d.getHours())}:${pad(d.getMinutes())}</div>
+        <div class="as-sub">${d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} · London</div>`,
+      say: `It's ${d.getHours() % 12 || 12}:${pad(d.getMinutes())}.`.replace(':00', " o'clock"),
+    };
+  }
+  async function questionCard(q) {
+    try {
+      const term = q.replace(/^(hey|ok) google,?\s*/i, '')
+        .replace(/^(who|what|where|when|how|why)\s+(is|was|are|were|did|does|do|tall|big|far|old|long|high)\s+((is|was|are)\s+)?/i, '')
+        .replace(/^(tell me about|show me|search for)\s+/i, '').replace(/\?$/, '');
+      const ctl = new AbortController(); setTimeout(() => ctl.abort(), 6000);
+      const sr = await (await fetch(`https://en.wikipedia.org/w/api.php?action=query&list=search&srlimit=1&format=json&origin=*&srsearch=${encodeURIComponent(term)}`, { signal: ctl.signal })).json();
+      const title = sr.query.search[0] && sr.query.search[0].title;
+      if (!title) throw new Error('no match');
+      const d = await (await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title.replace(/ /g, '_'))}`, { signal: ctl.signal })).json();
+      const extract = d.extract || '';
+      const say = extract.split(/(?<=[.!?])\s+/).slice(0, 2).join(' ');
+      const textHtml = `<div class="as-title">${esc(d.title)}<small>Wikipedia</small></div><div class="as-text">${esc(extract)}</div>`;
+      // with a picture the answer is spoken, not written; 960 px is one of Wikimedia's fixed thumbnail widths
+      const thumb = d.thumbnail && d.thumbnail.source, img = thumb && thumb.replace(/\/\d+px-/, '/960px-');
+      if (!img) return { html: textHtml, say };
+      return {
+        media: true, thumb, textHtml, say,
+        html: `<div class="as-media"><img class="bg" src="${img}" alt=""><img class="fg" src="${img}" alt="${esc(d.title)}"></div>`,
+      };
+    } catch (e) {
+      return {
+        html: '<div class="as-big">I couldn’t look that up right now.</div><div class="as-sub">Check the internet connection and ask again.</div>',
+        say: 'Sorry, I couldn’t look that up right now.',
+      };
+    }
+  }
+  return A;
+})();
+
+/* ---------- toast + hints ---------- */
+let toastT = 0;
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2600);
+}
+let hintsT = setTimeout(() => $('#hints').classList.add('gone'), 12000);
+
+/* ======================================================================
+   INPUT
+   ====================================================================== */
+// the remote's mic button stays Google Assistant: hold Shift here (250 ms with no other key)
+let micTimer = 0;
+addEventListener('keydown', (e) => {
+  if (e.key !== 'Shift') { clearTimeout(micTimer); return; }
+  if (!e.repeat && !S.booting) micTimer = setTimeout(() => Assist.start(), 250);
+}, true);
+addEventListener('keyup', (e) => {
+  if (e.key !== 'Shift') return;
+  clearTimeout(micTimer);
+  if (Assist.listening) Assist.stop();
+});
+addEventListener('keydown', (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey || e.key === 'Shift') return;
+  if (S.booting) { e.preventDefault(); finishBoot(); return; }
+  if (S.listening) { e.preventDefault(); if (e.key === 'Escape') micStop(); return; }
+  if (Assist.listening) { e.preventDefault(); return; }
+  const k = e.key, top = topLayer().name;
+  stage.classList.add('mouse-off');
+  if (k.startsWith('Arrow')) { e.preventDefault(); move(k.slice(5).toLowerCase()); return; }
+  if (k === 'Enter' || (k === ' ' && top !== 'search')) {
+    e.preventDefault();
+    if (top === 'settings' && S.focus) S.lastSetIdx = $$('#scard .opt').indexOf(S.focus);
+    activate(); return;
+  }
+  if (k === 'Escape' || k === 'Backspace' || k === 'BrowserBack' || k === 'GoBack') {
+    e.preventDefault();
+    if (top === 'search' && k === 'Backspace' && S.q) { typeKey('⌫'); return; }
+    back(); return;
+  }
+  if (top === 'search' && k.length === 1 && /[a-z0-9 '.-]/i.test(k)) { e.preventDefault(); typeKey(k.toLowerCase()); return; }
+  const lk = k.toLowerCase();
+  if (k === '/') { e.preventDefault(); if (top !== 'search') openSearch(); }
+  else if (lk === 'g') $('#guides').classList.toggle('hidden');
+  else if (lk === 'p') togglePS5();
+  else if (lk === 'h') { clearTimeout(hintsT); $('#hints').classList.toggle('gone'); }
+  else if (lk === 'w' && S.focus && S.focus._t) toggleWL(S.focus._t);
+  else if (lk === 'm') Assist.demo();
+});
+let lastKey = 0;
+addEventListener('keydown', () => { lastKey = performance.now(); }, true);
+stage.addEventListener('mousemove', (e) => {
+  // Chrome fires mousemove when the page scrolls under a resting pointer; only real hand movement
+  // should steal focus from the remote
+  const moved = Math.abs(e.movementX) + Math.abs(e.movementY);
+  if (moved === 0 || (performance.now() - lastKey < 800 && moved < 8)) return;
+  stage.classList.remove('mouse-off');
+  if (S.booting) return;
+  const f = e.target.closest('.f');
+  if (f && f !== S.focus && topLayer().el.contains(f)) setFocus(f);
+});
+stage.addEventListener('click', (e) => {
+  if (S.booting) { finishBoot(); return; }
+  const f = e.target.closest('.f');
+  if (f && topLayer().el.contains(f)) {
+    setFocus(f);
+    if (topLayer().name === 'settings') S.lastSetIdx = $$('#scard .opt').indexOf(f);
+    activate();
+  }
+});
+stage.addEventListener('contextmenu', (e) => { e.preventDefault(); if (!S.booting) back(); });
+
+/* ======================================================================
+   BOOT ANIMATION (ported from “BitTV Boot Animation.html”)
+   ====================================================================== */
+const Boot = (() => {
+  const NS = 'http://www.w3.org/2000/svg';
+  const AT = 0.26, FT = 0.82, POP = 0.45, SHEEN_START = 3.55, SHEEN_DUR = 1.1, END = 4.9;
+  const RATE = 2;            // overall playback rate: 2 = twice as fast (about 2.5 s total)
+  const WORD = 'BitTV', CAP = 419, BASE = 453, GAP = 96, CUBES_W = 462;
+  const cubes = [
+    { fill: 'bgA', w: 242, h: 243, r: 42, dest: [121, 174.5], S: [560, 760], C: [640, 80], th0: -180, Ap: 0.50, L: 1.15 },
+    { fill: 'bgB', w: 301, h: 300, r: 46, dest: [237.5, 291], S: [-10, 800], C: [480, 620], th0: 180, Ap: 0.60, L: 1.38, multiply: true },
+    { fill: 'bgC', w: 83, h: 83, r: 13, dest: [346.5, 41.5], S: [820, -150], C: [700, 40], th0: 360, Ap: 0.70, L: 1.60 },
+    { fill: 'bgD', w: 55, h: 55, r: 9, dest: [434.5, 432.5], S: [180, 940], C: [700, 700], th0: -270, Ap: 0.80, L: 1.78 },
+  ];
+  const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+  const lerp = (a, b, k) => a + (b - a) * k;
+  const smooth = (a, b, x) => { const s = clamp((x - a) / (b - a)); return s * s * (3 - 2 * s); };
+  const eio = (x) => x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+  const eioD = (x) => x < 0.5 ? 12 * x * x : 3 * Math.pow(-2 * x + 2, 2);
+  const eioSine = (x) => -(Math.cos(Math.PI * x) - 1) / 2;
+  const eoc = (x) => 1 - Math.pow(1 - x, 3);
+  const eob = (x) => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+  const settle = (tau, b, w) => Math.exp(-b * tau) * (Math.cos(w * tau) + (b / w) * Math.sin(w * tau));
+  const norm = (v) => { const l = Math.hypot(v[0], v[1]) || 1; return [v[0] / l, v[1] / l]; };
+  const deg = (v) => Math.atan2(v[1], v[0]) * 180 / Math.PI;
+  function bez(c, u) { const m = 1 - u; return [m * m * c.P0[0] + 2 * m * u * c.P1[0] + u * u * c.P2[0], m * m * c.P0[1] + 2 * m * u * c.P1[1] + u * u * c.P2[1]]; }
+  function bezD(c, u) { const m = 1 - u; return [2 * m * (c.P1[0] - c.P0[0]) + 2 * u * (c.P2[0] - c.P1[0]), 2 * m * (c.P1[1] - c.P0[1]) + 2 * u * (c.P2[1] - c.P1[1])]; }
+  cubes.forEach((c) => {
+    c.size = (c.w + c.h) / 2;
+    const d0 = norm([c.C[0] - c.S[0], c.C[1] - c.S[1]]);
+    c.d0ang = deg(d0);
+    c.P0 = [c.S[0] - d0[0] * c.size * 0.16, c.S[1] - d0[1] * c.size * 0.16];
+    c.P1 = c.C.slice();
+    const n = norm([c.dest[0] - c.C[0], c.dest[1] - c.C[1]]);
+    c.n = n; c.nang = deg(n); c.ov = 0.12 * c.size;
+    c.P2 = [c.dest[0] + n[0] * c.ov, c.dest[1] + n[1] * c.ov];
+    c.thOv = -Math.sign(c.th0) * 7;
+    c.Tland = c.L + AT + FT;
+    c.vmax = 0;
+    for (let k = 0; k <= 200; k++) { const x = k / 200, d = bezD(c, eio(x)); c.vmax = Math.max(c.vmax, Math.hypot(d[0], d[1]) * eioD(x)); }
+  });
+  function cubeState(c, t) {
+    let x = c.dest[0], y = c.dest[1], axis = 0, al = 1, rot = 0, pop = 1;
+    const tFly = c.L + AT;
+    if (t < c.Ap) { pop = 0; x = c.S[0]; y = c.S[1]; rot = c.th0; }
+    else if (t < c.L) { pop = eob(clamp((t - c.Ap) / POP)); x = c.S[0]; y = c.S[1]; rot = c.th0; }
+    else if (t < tFly) { const p = eioSine((t - c.L) / AT); x = lerp(c.S[0], c.P0[0], p); y = lerp(c.S[1], c.P0[1], p); al = 1 - 0.20 * p; axis = c.d0ang; rot = c.th0; }
+    else if (t < c.Tland) {
+      const k = (t - tFly) / FT, e = eio(k), p = bez(c, e), d = bezD(c, e);
+      const sp = Math.hypot(d[0], d[1]) * eioD(k) / c.vmax;
+      x = p[0]; y = p[1];
+      al = lerp(0.80, 1 + 0.34 * sp, smooth(0, 0.2, k));
+      al *= 1 - 0.26 * smooth(0.86, 1, k);
+      axis = deg(d); rot = c.th0 * (1 - e) + c.thOv * e;
+    } else {
+      const tau = t - c.Tland;
+      if (tau < 2) {
+        const s = settle(tau, 6.5, 13.2);
+        x = c.dest[0] + c.n[0] * c.ov * s; y = c.dest[1] + c.n[1] * c.ov * s;
+        al = 1 - 0.26 * s; rot = c.thOv * settle(tau, 5.5, 10.5); axis = c.nang;
+      }
+      cubes.forEach((o) => {
+        if (o === c || o.Tland <= c.Tland) return;
+        const tt = t - o.Tland - 0.03;
+        if (tt <= 0 || tt > 1.8) return;
+        const dir = norm([c.dest[0] - o.dest[0], c.dest[1] - o.dest[1]]);
+        const r = Math.exp(-5 * tt) * Math.sin(2 * Math.PI * 2.2 * tt) * 0.05 * o.size;
+        x += dir[0] * r; y += dir[1] * r;
+      });
+    }
+    return { x, y, axis, al, rot, pop: Math.max(pop, 0.0001), visible: pop > 0 };
+  }
+  const word = $('#bWord'), cubesG = $('#bCubes'), clip = $('#bClip'), sheen = $('#bSheen'), logo = $('#bLogo');
+  const letterEls = [];
+  let sheenX0 = 0, sheenX1 = 0, built = false, t = 0, last = 0, raf = 0, done = null;
+  async function build() {
+    try { await Promise.race([document.fonts.load('500 100px "Open Sans"'), new Promise((r) => setTimeout(r, 2500))]); } catch (e) { /* system font */ }
+    const fam = '"Open Sans","Segoe UI","Helvetica Neue",Arial,sans-serif';
+    const ctx = document.createElement('canvas').getContext('2d');
+    ctx.font = `500 100px ${fam}`;
+    const capAsc = ctx.measureText('T').actualBoundingBoxAscent || 71.4;
+    const FS = 100 * CAP / capAsc;
+    ctx.font = `500 ${FS}px ${fam}`;
+    const m = ctx.measureText(WORD);
+    const inkL = -m.actualBoundingBoxLeft, inkW = m.actualBoundingBoxRight - inkL;
+    const probe = document.createElementNS(NS, 'text');
+    probe.setAttribute('class', 'glyph'); probe.setAttribute('font-size', FS); probe.setAttribute('x', 0); probe.setAttribute('y', BASE);
+    probe.textContent = WORD; word.appendChild(probe);
+    let starts;
+    try { starts = [...WORD].map((_, i) => probe.getStartPositionOfChar(i).x); }
+    catch (e) { starts = [...WORD].map((_, i) => ctx.measureText(WORD.slice(0, i)).width); }
+    word.removeChild(probe);
+    const leftTarget = -(inkW + GAP), shift = leftTarget - inkL;
+    [...WORD].forEach((ch, i) => {
+      const g = document.createElementNS(NS, 'g'), tx = document.createElementNS(NS, 'text');
+      tx.setAttribute('class', 'glyph'); tx.setAttribute('font-size', FS); tx.setAttribute('x', starts[i] + shift); tx.setAttribute('y', BASE);
+      tx.setAttribute('fill', 'url(#bInk)'); tx.textContent = ch;
+      g.appendChild(tx); word.appendChild(g); letterEls.push(g);
+      const ct = tx.cloneNode(true); ct.removeAttribute('fill'); clip.appendChild(ct);
+    });
+    cubes.forEach((c) => {
+      const g = document.createElementNS(NS, 'g');
+      if (c.multiply) g.style.mixBlendMode = 'multiply';
+      const r = document.createElementNS(NS, 'rect');
+      r.setAttribute('x', -c.w / 2); r.setAttribute('y', -c.h / 2); r.setAttribute('width', c.w); r.setAttribute('height', c.h);
+      r.setAttribute('rx', c.r); r.setAttribute('fill', `url(#${c.fill})`);
+      g.appendChild(r); cubesG.appendChild(g); c.el = g;
+      const cr = r.cloneNode(false); cr.removeAttribute('fill');
+      cr.setAttribute('x', c.dest[0] - c.w / 2); cr.setAttribute('y', c.dest[1] - c.h / 2); clip.appendChild(cr);
+    });
+    const sc = 1180 / (CUBES_W - leftTarget), cx = (leftTarget + CUBES_W) / 2;
+    logo.setAttribute('transform', `translate(960 540) scale(${sc}) translate(${-cx} -230)`);
+    sheenX0 = leftTarget - 260; sheenX1 = CUBES_W + 120;
+  }
+  function render(t) {
+    letterEls.forEach((g, i) => {
+      const p = clamp((t - (0.25 + i * 0.10)) / 0.8);
+      g.setAttribute('opacity', (1 - Math.pow(1 - clamp(p * 1.6), 2)).toFixed(3));
+      g.setAttribute('transform', `translate(0 ${((1 - eoc(p)) * 70).toFixed(2)})`);
+    });
+    cubes.forEach((c) => {
+      if (!c.el) return;
+      const s = cubeState(c, t);
+      if (!s.visible) { c.el.setAttribute('visibility', 'hidden'); return; }
+      c.el.setAttribute('visibility', 'visible');
+      c.el.setAttribute('transform', `translate(${s.x.toFixed(2)} ${s.y.toFixed(2)}) rotate(${s.axis.toFixed(2)}) scale(${s.al.toFixed(4)} ${(1 / s.al).toFixed(4)}) rotate(${(-s.axis).toFixed(2)}) rotate(${s.rot.toFixed(2)}) scale(${s.pop.toFixed(4)})`);
+    });
+    const sp = (t - SHEEN_START) / SHEEN_DUR;
+    if (sp > 0 && sp < 1) { sheen.setAttribute('visibility', 'visible'); sheen.setAttribute('transform', `translate(${lerp(sheenX0, sheenX1, eioSine(sp)).toFixed(1)} 0) skewX(-18)`); }
+    else sheen.setAttribute('visibility', 'hidden');
+  }
+  function frame(now) {
+    t += Math.min(0.05, (now - last) / 1000) * RATE; last = now;
+    render(Math.min(t, END));
+    if (t >= END + 0.35 * RATE) { if (done) done(); return; }   // hold the finished logo ~0.35 s
+    raf = requestAnimationFrame(frame);
+  }
+  return {
+    async play(cb) {
+      if (!built) { await build(); built = true; }
+      t = 0; done = cb; last = performance.now();
+      cancelAnimationFrame(raf); raf = requestAnimationFrame(frame);
+    },
+    stop() { cancelAnimationFrame(raf); },
+  };
+})();
+function playBoot() {
+  const b = $('#boot');
+  S.booting = true;
+  b.classList.remove('hidden', 'out');
+  Boot.play(finishBoot);
+}
+function finishBoot() {
+  if (!S.booting) return;
+  S.booting = false;
+  Boot.stop();
+  const b = $('#boot');
+  b.classList.add('out');
+  setTimeout(() => { if (!S.booting) b.classList.add('hidden'); }, 420);
+}
+
+/* ======================================================================
+   START
+   ====================================================================== */
+S.stack.push({ name: 'home', el: LAYERS.home, prev: null });
+buildRail(); buildTop(); buildPanel(); buildHero(); buildRows(); buildKbd();
+tickClock(); loadWeather();
+setFocus($('#hero'));
+setInterval(() => {
+  tickClock();
+  if (S.sp.playing) {
+    S.sp.pos += 1;
+    if (S.sp.pos >= TRACKS[S.sp.i].len) { S.sp.i = (S.sp.i + 1) % TRACKS.length; S.sp.pos = 0; }
+    renderSpotify();
+  }
+}, 1000);
+setInterval(() => { newsIdx = (newsIdx + 1) % NEWS.length; renderNews(); }, 9000);
+(function loop(now) { drawPS5(now / 1000); requestAnimationFrame(loop); })(0);
+if (location.hash === '#noboot') finishBoot(); else playBoot();
+})();
+</script>
+</body>
+</html>

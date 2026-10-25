@@ -1,0 +1,8 @@
+# Android / Gradle build output (native app, later)
+android/**/build/
+android/.gradle/
+android/local.properties
+*.apk
+*.aab
+*.keystore
+.idea/

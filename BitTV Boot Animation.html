@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>BitTV Boot Animation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    color-scheme: light;
+    --bg-a: #ffffff;
+    --bg-b: #e8ecf1;
+    --ink-top: #4f4e4c;
+    --ink-bot: #030303;
+    --sheen: #ffffff;
+    --sheen-a: 0.5;
+    --ui-bg: rgba(255, 255, 255, 0.82);
+    --ui-fg: #262b33;
+    --ui-line: rgba(20, 30, 50, 0.16);
+    --ui-on: #1f6fb8;
+    --ui-on-fg: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg-a: #151b26;
+      --bg-b: #05070b;
+      --ink-top: #fbfcfe;
+      --ink-bot: #98a1ad;
+      --sheen: #6cc4ff;
+      --sheen-a: 0.95;
+      --ui-bg: rgba(28, 34, 44, 0.82);
+      --ui-fg: #e7eaef;
+      --ui-line: rgba(255, 255, 255, 0.18);
+      --ui-on: #5aa2e6;
+      --ui-on-fg: #06121f;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg-a: #151b26;
+    --bg-b: #05070b;
+    --ink-top: #fbfcfe;
+    --ink-bot: #98a1ad;
+    --sheen: #6cc4ff;
+    --sheen-a: 0.95;
+    --ui-bg: rgba(28, 34, 44, 0.82);
+    --ui-fg: #e7eaef;
+    --ui-line: rgba(255, 255, 255, 0.18);
+    --ui-on: #5aa2e6;
+    --ui-on-fg: #06121f;
+  }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    overflow: hidden;
+    background: radial-gradient(ellipse at 50% 46%, var(--bg-a) 0%, var(--bg-b) 100%);
+    font-family: "Open Sans", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  }
+  #stage { display: block; width: 100%; height: 100%; }
+  .glyph {
+    font-family: "Open Sans", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    font-weight: 500;
+    font-kerning: normal;
+    text-rendering: geometricPrecision;
+  }
+
+  #ui {
+    position: fixed;
+    left: 50%;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
+    transform: translateX(-50%);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: max-content;
+    max-width: calc(100% - 24px);
+    padding: 8px 10px;
+    background: var(--ui-bg);
+    border: 1px solid var(--ui-line);
+    border-radius: 14px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    color: var(--ui-fg);
+    transition: opacity 0.4s ease;
+  }
+  #ui.idle:not(:focus-within) { opacity: 0; pointer-events: none; }
+  #ui button {
+    font: inherit;
+    font-size: 13px;
+    color: var(--ui-fg);
+    background: transparent;
+    border: 1px solid var(--ui-line);
+    border-radius: 8px;
+    padding: 6px 12px;
+    min-height: 32px;
+    cursor: pointer;
+  }
+  #ui button:hover { border-color: var(--ui-fg); }
+  #ui button:focus-visible { outline: 2px solid var(--ui-on); outline-offset: 2px; }
+  #ui button[aria-pressed="true"] { background: var(--ui-on); border-color: var(--ui-on); color: var(--ui-on-fg); }
+  #ui .seg { display: inline-flex; gap: 4px; }
+  #scrub { width: 190px; accent-color: var(--ui-on); }
+  @media (max-width: 560px) { #scrub { width: 100%; order: -1; } }
+</style>
+</head>
+<body>
+
+<svg id="stage" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid meet" role="img" aria-label="BitTV boot animation">
+  <defs>
+    <linearGradient id="ink" gradientUnits="userSpaceOnUse" x1="0" y1="34" x2="0" y2="453">
+      <stop offset="0" style="stop-color: var(--ink-top)"/>
+      <stop offset="1" style="stop-color: var(--ink-bot)"/>
+    </linearGradient>
+    <linearGradient id="gA" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#76b2e4"/><stop offset="1" stop-color="#5b97d1"/>
+    </linearGradient>
+    <linearGradient id="gB" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#72aee1"/><stop offset="1" stop-color="#5994ce"/>
+    </linearGradient>
+    <linearGradient id="gC" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#70abdf"/><stop offset="1" stop-color="#5e9bd4"/>
+    </linearGradient>
+    <linearGradient id="gD" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#86cdf6"/><stop offset="1" stop-color="#4a86c8"/>
+    </linearGradient>
+    <linearGradient id="gSheen" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" style="stop-color: var(--sheen); stop-opacity: 0"/>
+      <stop offset="0.5" style="stop-color: var(--sheen); stop-opacity: var(--sheen-a)"/>
+      <stop offset="1" style="stop-color: var(--sheen); stop-opacity: 0"/>
+    </linearGradient>
+    <clipPath id="logoClip"></clipPath>
+  </defs>
+
+  <g id="logo">
+    <g id="word"></g>
+    <g id="cubes" style="isolation: isolate"></g>
+    <g clip-path="url(#logoClip)" pointer-events="none">
+      <rect id="sheenBand" x="0" y="-60" width="190" height="580" fill="url(#gSheen)" visibility="hidden"/>
+    </g>
+  </g>
+</svg>
+
+<div id="ui" role="toolbar" aria-label="Playback controls">
+  <button id="btnPlay" type="button">Pause</button>
+  <button id="btnReplay" type="button">Replay</button>
+  <input id="scrub" type="range" min="0" max="1000" step="1" value="0" aria-label="Timeline">
+  <div class="seg" role="group" aria-label="Playback speed">
+    <button type="button" data-speed="1" aria-pressed="true">1×</button>
+    <button type="button" data-speed="0.5" aria-pressed="false">0.5×</button>
+    <button type="button" data-speed="0.25" aria-pressed="false">0.25×</button>
+  </div>
+  <button id="btnLoop" type="button" aria-pressed="false">Loop</button>
+  <button id="btnTheme" type="button">Backdrop</button>
+</div>
+
+<script>
+(() => {
+  const NS = 'http://www.w3.org/2000/svg';
+  const $ = (s) => document.querySelector(s);
+
+  /* ---------- timing (seconds) ---------- */
+  const AT = 0.26;          // anticipation duration
+  const FT = 0.82;          // flight duration
+  const POP = 0.45;         // cube pop-in duration
+  const SHEEN_START = 3.55; // final light sweep
+  const SHEEN_DUR = 1.1;
+  const END = 4.9;
+  const HOLD = 1.6;         // pause between loops
+  const RATE = 2;           // overall playback rate: 2 = twice as fast (about 2.5 s total)
+
+  /* ---------- logo geometry (logo space, origin = left edge of cubes) ---------- */
+  const WORD = 'BitTV';
+  const CAP = 419, BASE = 453, GAP = 96, CUBES_W = 462;
+
+  const cubes = [
+    { id: 'A', fill: 'gA', w: 242, h: 243, r: 42, dest: [121, 174.5],  S: [560, 760],  C: [640, 80],  th0: -180, Ap: 0.50, L: 1.15 },
+    { id: 'B', fill: 'gB', w: 301, h: 300, r: 46, dest: [237.5, 291],  S: [-10, 800],  C: [480, 620], th0: 180,  Ap: 0.60, L: 1.38, multiply: true },
+    { id: 'C', fill: 'gC', w: 83,  h: 83,  r: 13, dest: [346.5, 41.5], S: [820, -150], C: [700, 40],  th0: 360,  Ap: 0.70, L: 1.60 },
+    { id: 'D', fill: 'gD', w: 55,  h: 55,  r: 9,  dest: [434.5, 432.5],S: [180, 940],  C: [700, 700], th0: -270, Ap: 0.80, L: 1.78 },
+  ];
+
+  /* ---------- easing helpers ---------- */
+  const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+  const lerp = (a, b, k) => a + (b - a) * k;
+  const smooth = (a, b, x) => { const s = clamp((x - a) / (b - a)); return s * s * (3 - 2 * s); };
+  const eio = (x) => x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;      // slow-in / slow-out
+  const eioD = (x) => x < 0.5 ? 12 * x * x : 3 * Math.pow(-2 * x + 2, 2);
+  const eioSine = (x) => -(Math.cos(Math.PI * x) - 1) / 2;
+  const eoc = (x) => 1 - Math.pow(1 - x, 3);
+  const eob = (x) => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+  // damped spring step response: starts at 1 with zero slope, overshoots, settles to 0
+  const settle = (tau, b, w) => Math.exp(-b * tau) * (Math.cos(w * tau) + (b / w) * Math.sin(w * tau));
+  const norm = (v) => { const l = Math.hypot(v[0], v[1]) || 1; return [v[0] / l, v[1] / l]; };
+  const deg = (v) => Math.atan2(v[1], v[0]) * 180 / Math.PI;
+
+  /* ---------- cube path set-up (quadratic bezier arcs) ---------- */
+  cubes.forEach((c) => {
+    c.size = (c.w + c.h) / 2;
+    const d0 = norm([c.C[0] - c.S[0], c.C[1] - c.S[1]]);
+    c.d0ang = deg(d0);
+    c.P0 = [c.S[0] - d0[0] * c.size * 0.16, c.S[1] - d0[1] * c.size * 0.16]; // pulled back during anticipation
+    c.P1 = c.C.slice();
+    const n = norm([c.dest[0] - c.C[0], c.dest[1] - c.C[1]]);
+    c.n = n; c.nang = deg(n);
+    c.ov = 0.12 * c.size;
+    c.P2 = [c.dest[0] + n[0] * c.ov, c.dest[1] + n[1] * c.ov];             // overshoot target
+    c.thOv = -Math.sign(c.th0) * 7;
+    c.Tland = c.L + AT + FT;
+    c.vmax = 0;
+    for (let k = 0; k <= 200; k++) {
+      const x = k / 200, d = bezD(c, eio(x));
+      c.vmax = Math.max(c.vmax, Math.hypot(d[0], d[1]) * eioD(x));
+    }
+  });
+  function bez(c, u) {
+    const m = 1 - u;
+    return [m * m * c.P0[0] + 2 * m * u * c.P1[0] + u * u * c.P2[0],
+            m * m * c.P0[1] + 2 * m * u * c.P1[1] + u * u * c.P2[1]];
+  }
+  function bezD(c, u) {
+    const m = 1 - u;
+    return [2 * m * (c.P1[0] - c.P0[0]) + 2 * u * (c.P2[0] - c.P1[0]),
+            2 * m * (c.P1[1] - c.P0[1]) + 2 * u * (c.P2[1] - c.P1[1])];
+  }
+
+  /* ---------- per-cube state at time t ---------- */
+  function cubeState(c, t) {
+    let x = c.dest[0], y = c.dest[1], axis = 0, al = 1, rot = 0, pop = 1;
+    const tFly = c.L + AT;
+
+    if (t < c.Ap) {                                   // not yet visible
+      pop = 0; x = c.S[0]; y = c.S[1]; rot = c.th0;
+    } else if (t < c.L) {                             // pop in, wait at staging point
+      pop = eob(clamp((t - c.Ap) / POP));
+      x = c.S[0]; y = c.S[1]; rot = c.th0;
+    } else if (t < tFly) {                            // ANTICIPATION: squash and pull back
+      const p = eioSine((t - c.L) / AT);
+      x = lerp(c.S[0], c.P0[0], p); y = lerp(c.S[1], c.P0[1], p);
+      al = 1 - 0.20 * p; axis = c.d0ang; rot = c.th0;
+    } else if (t < c.Tland) {                         // FLIGHT: arc, stretch, tumble
+      const k = (t - tFly) / FT;
+      const e = eio(k);
+      const p = bez(c, e), d = bezD(c, e);
+      const sp = Math.hypot(d[0], d[1]) * eioD(k) / c.vmax;
+      x = p[0]; y = p[1];
+      al = lerp(0.80, 1 + 0.34 * sp, smooth(0, 0.2, k));
+      al *= 1 - 0.26 * smooth(0.86, 1, k);            // brace for impact
+      axis = deg(d);
+      rot = c.th0 * (1 - e) + c.thOv * e;
+    } else {                                          // LANDING: squash, overshoot, settle
+      const tau = t - c.Tland;
+      if (tau < 2) {
+        const s = settle(tau, 6.5, 13.2);
+        x = c.dest[0] + c.n[0] * c.ov * s;
+        y = c.dest[1] + c.n[1] * c.ov * s;
+        al = 1 - 0.26 * s;
+        rot = c.thOv * settle(tau, 5.5, 10.5);
+        axis = c.nang;
+      }
+      // follow-through: later landings nudge cubes that already settled
+      cubes.forEach((o) => {
+        if (o === c || o.Tland <= c.Tland) return;
+        const tt = t - o.Tland - 0.03;
+        if (tt <= 0 || tt > 1.8) return;
+        const dir = norm([c.dest[0] - o.dest[0], c.dest[1] - o.dest[1]]);
+        const r = Math.exp(-5 * tt) * Math.sin(2 * Math.PI * 2.2 * tt) * 0.05 * o.size;
+        x += dir[0] * r; y += dir[1] * r;
+      });
+    }
+    return { x, y, axis, al, rot, pop: Math.max(pop, 0.0001), visible: pop > 0 };
+  }
+
+  /* ---------- build the scene (after the font is ready, so measurements are right) ---------- */
+  const word = $('#word'), cubesG = $('#cubes'), clip = $('#logoClip'), sheen = $('#sheenBand'), logo = $('#logo');
+  const letterEls = [];
+  let sheenX0 = 0, sheenX1 = 0;
+
+  async function build() {
+    try {
+      await Promise.race([document.fonts.load('500 100px "Open Sans"'), new Promise((r) => setTimeout(r, 2500))]);
+    } catch (e) { /* fall back to system font */ }
+
+    const fam = '"Open Sans","Segoe UI","Helvetica Neue",Arial,sans-serif';
+    const ctx = document.createElement('canvas').getContext('2d');
+    ctx.font = `500 100px ${fam}`;
+    const capAsc = ctx.measureText('T').actualBoundingBoxAscent || 71.4;
+    const FS = 100 * CAP / capAsc;                       // font size that gives the reference cap height
+    ctx.font = `500 ${FS}px ${fam}`;
+    const m = ctx.measureText(WORD);
+    const inkL = -m.actualBoundingBoxLeft, inkR = m.actualBoundingBoxRight;
+    const inkW = inkR - inkL;
+
+    const probe = document.createElementNS(NS, 'text');
+    probe.setAttribute('class', 'glyph');
+    probe.setAttribute('font-size', FS);
+    probe.setAttribute('x', 0); probe.setAttribute('y', BASE);
+    probe.textContent = WORD;
+    word.appendChild(probe);
+    let starts;
+    try {
+      starts = [...WORD].map((_, i) => probe.getStartPositionOfChar(i).x);
+    } catch (e) {
+      starts = [...WORD].map((_, i) => ctx.measureText(WORD.slice(0, i)).width);
+    }
+    word.removeChild(probe);
+
+    const leftTarget = -(inkW + GAP);
+    const shift = leftTarget - inkL;
+
+    [...WORD].forEach((ch, i) => {
+      const g = document.createElementNS(NS, 'g');
+      const t = document.createElementNS(NS, 'text');
+      t.setAttribute('class', 'glyph');
+      t.setAttribute('font-size', FS);
+      t.setAttribute('x', starts[i] + shift);
+      t.setAttribute('y', BASE);
+      t.setAttribute('fill', 'url(#ink)');
+      t.textContent = ch;
+      g.appendChild(t);
+      word.appendChild(g);
+      letterEls.push(g);
+
+      const ct = t.cloneNode(true);
+      ct.removeAttribute('fill');
+      clip.appendChild(ct);
+    });
+
+    cubes.forEach((c) => {
+      const g = document.createElementNS(NS, 'g');
+      if (c.multiply) g.style.mixBlendMode = 'multiply';
+      const r = document.createElementNS(NS, 'rect');
+      r.setAttribute('x', -c.w / 2); r.setAttribute('y', -c.h / 2);
+      r.setAttribute('width', c.w); r.setAttribute('height', c.h);
+      r.setAttribute('rx', c.r);
+      r.setAttribute('fill', `url(#${c.fill})`);
+      g.appendChild(r);
+      cubesG.appendChild(g);
+      c.el = g;
+
+      const cr = r.cloneNode(false);
+      cr.removeAttribute('fill');
+      cr.setAttribute('x', c.dest[0] - c.w / 2); cr.setAttribute('y', c.dest[1] - c.h / 2);
+      clip.appendChild(cr);
+    });
+
+    const totalW = CUBES_W - leftTarget;
+    const sc = 1180 / totalW;
+    const cx = (leftTarget + CUBES_W) / 2;
+    logo.setAttribute('transform', `translate(960 540) scale(${sc}) translate(${-cx} -230)`);
+    sheenX0 = leftTarget - 260; sheenX1 = CUBES_W + 120;
+  }
+
+  /* ---------- render one frame ---------- */
+  function render(t) {
+    // wordmark: letters rise in, staggered
+    letterEls.forEach((g, i) => {
+      const p = clamp((t - (0.25 + i * 0.10)) / 0.8);
+      const dy = (1 - eoc(p)) * 70;
+      g.setAttribute('opacity', (1 - Math.pow(1 - clamp(p * 1.6), 2)).toFixed(3));
+      g.setAttribute('transform', `translate(0 ${dy.toFixed(2)})`);
+    });
+
+    // cubes
+    cubes.forEach((c) => {
+      if (!c.el) return;
+      const s = cubeState(c, t);
+      if (!s.visible) { c.el.setAttribute('visibility', 'hidden'); return; }
+      c.el.setAttribute('visibility', 'visible');
+      const perp = 1 / s.al;
+      c.el.setAttribute('transform',
+        `translate(${s.x.toFixed(2)} ${s.y.toFixed(2)}) rotate(${s.axis.toFixed(2)}) ` +
+        `scale(${s.al.toFixed(4)} ${perp.toFixed(4)}) rotate(${(-s.axis).toFixed(2)}) ` +
+        `rotate(${s.rot.toFixed(2)}) scale(${s.pop.toFixed(4)})`);
+    });
+
+    // finishing light sweep
+    const sp = (t - SHEEN_START) / SHEEN_DUR;
+    if (sp > 0 && sp < 1) {
+      const sx = lerp(sheenX0, sheenX1, eioSine(sp));
+      sheen.setAttribute('visibility', 'visible');
+      sheen.setAttribute('transform', `translate(${sx.toFixed(1)} 0) skewX(-18)`);
+    } else {
+      sheen.setAttribute('visibility', 'hidden');
+    }
+  }
+
+  /* ---------- playback ---------- */
+  const scrub = $('#scrub'), btnPlay = $('#btnPlay'), ui = $('#ui');
+  let t = 0, playing = true, speed = 1, loop = false, last = 0;
+
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    if (playing) {
+      t += dt * speed * RATE;
+      if (t >= END) {
+        if (loop) { if (t >= END + HOLD) t = 0; }
+        else { t = END; playing = false; btnPlay.textContent = 'Play'; }
+      }
+    }
+    const tt = Math.min(t, END);
+    render(tt);
+    if (document.activeElement !== scrub) scrub.value = Math.round(tt / END * 1000);
+    requestAnimationFrame(frame);
+  }
+
+  function replay() { t = 0; playing = true; btnPlay.textContent = 'Pause'; }
+
+  btnPlay.addEventListener('click', () => {
+    if (!playing && t >= END) t = 0;
+    playing = !playing;
+    btnPlay.textContent = playing ? 'Pause' : 'Play';
+  });
+  $('#btnReplay').addEventListener('click', replay);
+  scrub.addEventListener('input', () => {
+    t = scrub.value / 1000 * END;
+    playing = false; btnPlay.textContent = 'Play';
+  });
+  document.querySelectorAll('[data-speed]').forEach((b) => b.addEventListener('click', () => {
+    speed = parseFloat(b.dataset.speed);
+    document.querySelectorAll('[data-speed]').forEach((o) => o.setAttribute('aria-pressed', String(o === b)));
+  }));
+  $('#btnLoop').addEventListener('click', (e) => {
+    loop = !loop;
+    e.currentTarget.setAttribute('aria-pressed', String(loop));
+  });
+  $('#btnTheme').addEventListener('click', () => {
+    const root = document.documentElement;
+    const isDark = root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    root.dataset.theme = isDark ? 'light' : 'dark';
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.target.closest && e.target.closest('button, input')) return;
+    if (e.code === 'Space') { e.preventDefault(); btnPlay.click(); }
+    if (e.key === 'r' || e.key === 'R') replay();
+  });
+
+  // controls fade out when idle
+  let idleTimer;
+  const wake = () => { ui.classList.remove('idle'); clearTimeout(idleTimer); idleTimer = setTimeout(() => ui.classList.add('idle'), 3000); };
+  ['mousemove', 'pointerdown', 'touchstart', 'keydown'].forEach((ev) => window.addEventListener(ev, wake, { passive: true }));
+  wake();
+
+  build().then(() => { last = performance.now(); requestAnimationFrame(frame); });
+})();
+</script>
+</body>
+</html>
