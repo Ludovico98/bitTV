@@ -63,6 +63,14 @@ class CatalogRepoTest {
         assertEquals(0xFF00FF00, TmdbParse.fromCache(file.readText())!!.single().c1)
     }
 
+    @Test fun continueWatchingDoesNotRepeatTheWatchLaterPicks() {
+        val many = (1..12).map { real.copy(id = "tv$it", score = it.toDouble()) }
+        val wl = WatchLaterSeed.replaceDemo(com.bittv.home.model.Prefs().watchLater, many, com.bittv.home.model.Prefs().subs)!!
+        val cw = TmdbParse.demoProgress(many).map { it.titleId }
+        assertTrue("overlap ${cw.intersect(wl.toSet())}", cw.none { it in wl })
+        assertTrue(cw.isNotEmpty())
+    }
+
     @Test fun tmdbCatalogIsACatalogSource() {
         val s: CatalogSource = TmdbCatalog("k") { _, _ -> null }
         assertTrue(s is TmdbCatalog)

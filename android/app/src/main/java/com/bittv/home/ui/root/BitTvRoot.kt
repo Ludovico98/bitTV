@@ -41,6 +41,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.bittv.home.AppGraph
 import com.bittv.home.data.CatalogRepo
 import com.bittv.home.data.DemoCatalog
+import com.bittv.home.data.WatchLaterSeed
+import kotlinx.coroutines.flow.first
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
@@ -86,6 +88,12 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
     // the catalogue refreshes while Home is in front (CatalogRepo skips it when its copy is under 12 h old)
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(demoCatalog) { if (!demoCatalog) lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) { graph.catalog.refresh() } }
+    // first real catalogue: the demo's Watch Later picks become real titles (read from storage, never the default)
+    LaunchedEffect(catalog.source) {
+        if (catalog.source != CatalogRepo.Source.TMDB) return@LaunchedEffect
+        val saved = graph.prefs.prefs.first()
+        WatchLaterSeed.replaceDemo(saved.watchLater, catalog.titles, saved.subs)?.let { graph.prefs.setWatchLater(it) }
+    }
     val stack = remember { mutableStateListOf<Screen>(Screen.Home) }
     var returnToken by remember { mutableIntStateOf(0) }
     var topToken by remember { mutableIntStateOf(0) }

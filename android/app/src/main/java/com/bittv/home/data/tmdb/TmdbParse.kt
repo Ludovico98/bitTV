@@ -81,10 +81,14 @@ object TmdbParse {
         return byId.values.toList()
     }
 
-    /** Continue Watching for the demo: a few real titles with made-up positions (the TV's Watch Next replaces this). */
+    /**
+     * Continue Watching for the demo: a few real titles with made-up positions (the TV's Watch Next replaces this).
+     * It skips the five best-rated, which seed Watch Later, so the two rows don't repeat each other.
+     */
     fun demoProgress(titles: List<Title>): List<Progress> {
         val f = listOf(0.62f, 0.35f, 0.8f, 0.15f)
-        return titles.sortedByDescending { it.score }.take(f.size).mapIndexed { i, t ->
+        val ranked = titles.sortedByDescending { it.score }
+        return ranked.drop(minOf(5, ranked.size / 2)).take(f.size).mapIndexed { i, t ->
             Progress(t.id, f[i], if (t.type == TitleType.SERIES) "S1 · E${i + 2} · ${((1 - f[i]) * 50).toInt()} min left"
                                  else "${((1 - f[i]) * 110).toInt()} min left")
         }

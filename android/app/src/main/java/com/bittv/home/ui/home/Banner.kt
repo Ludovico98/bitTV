@@ -49,8 +49,12 @@ fun Banner(items: List<Title>, index: Int, subs: Set<Svc>, apps: List<AppEntry>,
         Crossfade(current, animationSpec = LocalMotion.current.tween(400), label = "slide") { t ->
             Box(Modifier.fillMaxSize()) {
                 PosterArt(t, Modifier.fillMaxSize(), showTitle = false, imageWidth = 1280)
+                // real artwork is busy: a deeper shade behind the text (and along the bottom) than the drawn posters need
+                val deep = t.art != null
                 Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(
-                    0f to Color.Black.copy(alpha = 0.72f), 0.55f to Color.Black.copy(alpha = 0.25f), 0.8f to Color.Transparent)))
+                    0f to Color.Black.copy(alpha = if (deep) 0.88f else 0.72f), 0.55f to Color.Black.copy(alpha = if (deep) 0.5f else 0.25f),
+                    0.85f to Color.Transparent)))
+                if (deep) Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.6f))))
                 SlideInfo(t, subs, apps, Modifier.align(Alignment.BottomStart).padding(start = 28.dp, bottom = 32.dp).widthIn(max = 320.dp))
             }
         }
@@ -75,7 +79,9 @@ private fun SlideInfo(t: Title, subs: Set<Svc>, apps: List<AppEntry>, modifier: 
         }
         Spacer(Modifier.height(7.dp))
         Text(if (t.font == TitleFont.BEBAS || t.font == TitleFont.OSWALD) t.name.uppercase() else t.name,
-            style = posterStyle(t.font, 2.65f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            // long real titles step down in size so they fit on two lines instead of being cut
+            style = posterStyle(t.font, when { t.name.length <= 14 -> 2.65f; t.name.length <= 24 -> 2.05f; else -> 1.6f }),
+            maxLines = 2, overflow = TextOverflow.Ellipsis)
         Spacer(Modifier.height(6.dp))
         Text(t.blurb, style = Type.Body.copy(color = Color(0xDBFFFFFF)), maxLines = 2, overflow = TextOverflow.Ellipsis)
         Spacer(Modifier.height(6.dp))
