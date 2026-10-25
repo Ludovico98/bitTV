@@ -39,6 +39,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.bittv.home.AppGraph
+import com.bittv.home.platform.TtsSpeaker
+import androidx.compose.runtime.rememberUpdatedState
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -93,7 +95,7 @@ sealed interface Screen {
 /** The screen stack. Home stays composed underneath so it keeps its place; Back pops, Back on Home goes to the top. */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, demoCatalog: Boolean = false) {
+fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, demoCatalog: Boolean = false, askSignal: Int = 0) {
     val prefs by graph.prefs.prefs.collectAsStateWithLifecycle(initialValue = Prefs())
     val scope = rememberCoroutineScope()
     // the app bar in his order (hold OK on an app to move it)
@@ -146,14 +148,32 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
     var booting by rememberSaveable { mutableStateOf(!skipBoot) }
     // the Assistant: demo answers and an estimated reading time until plan 2 wires speech and live answers
     val demo = remember { DemoAnswers() }
-    val assistant = remember { AssistantController(scope, EstimatedSpeaker, demo) }
+    val ctx = LocalContext.current
+    val voice by rememberUpdatedState(prefs.voice)
+    // real answers on the TV: live weather/time/Wikipedia read aloud; the rest goes to Google Assistant
+    val tts = remember { if (demoCatalog) null else TtsSpeaker(ctx) { voice } }
+    val assistant = remember {
+        AssistantController(scope, tts ?: EstimatedSpeaker, if (demoCatalog) demo else graph.answers, onHandoff = { q ->
+            runCatching {
+                ctx.startActivity(Intent("android.search.action.GLOBAL_SEARCH").setPackage("com.google.android.katniss")
+                    .putExtra(android.app.SearchManager.QUERY, q).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }
+        })
+    }
     val assistantState by assistant.state.collectAsStateWithLifecycle()
     // kept here, not in Search, so the query is still there when Back returns from a result
     var searchQuery by rememberSaveable { mutableStateOf("") }
     fun askDemo() {
         while (stack.size > 1) stack.removeAt(stack.lastIndex)
-        assistant.ask(demo.nextQuestion())
+        if (demoCatalog) { assistant.ask(demo.nextQuestion()); return }
+        // the remote's mic on BitTV: listen for real; the answer appears in the active section
+        if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) return
+        assistant.listen { onPartial -> graph.speech.listen(onPartial) }
     }
+    LaunchedEffect(askSignal) { if (askSignal > 0) askDemo() }
+    // the TV's English voices for the Settings picker
+    var voices by remember { mutableStateOf<List<String>>(emptyList()) }
+    LaunchedEffect(tts) { tts?.let { voices = it.voices() } }
 
     // opening a page puts any answer away: it belongs to Home and Back must close the page first
     fun push(s: Screen) { assistant.dismiss(); stack.add(s) }
@@ -252,7 +272,7 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
                     if (demoCatalog) installed = installed + top.app.id else graph.appsRepo.openStore(top.app)
                     pop()
                 }, onBack = ::pop)
-                Screen.Settings -> SettingsScreen(prefs, graph.prefs, apps, voices = emptyList(), onSample = {},
+                Screen.Settings -> SettingsScreen(prefs, graph.prefs, apps, voices = voices, onSample = { scope.launch { tts?.speak("Hello, this is how I will sound when I answer you.") } },
                     onTvSettings = { runCatching { context.startActivity(Intent(android.provider.Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } },
                     onReplayBoot = { pop(); booting = true }, onBack = ::pop)
                 is Screen.Opening -> OpeningScreen(top.app, top.label, top.line, onBack = ::pop)

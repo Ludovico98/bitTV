@@ -24,6 +24,7 @@ class AssistantController(
     private val speaker: Speaker,
     private val provider: AnswerProvider,
     private val showForMs: Long = 30_000,
+    private val onHandoff: (String) -> Unit = {},
 ) {
     private val _state = MutableStateFlow<AssistantState>(AssistantState.Idle)
     val state: StateFlow<AssistantState> = _state
@@ -43,9 +44,24 @@ class AssistantController(
         job = scope.launch { answer(query) }
     }
 
+    /**
+     * A real spoken question: "Listening…" with the words as they are recognised, then the answer. Nothing heard →
+     * back to Idle quietly; a question that isn't BitTV's goes to Google Assistant ([onHandoff]).
+     */
+    fun listen(listener: suspend (onPartial: (String) -> Unit) -> String?) {
+        job?.cancel()
+        job = scope.launch {
+            _state.value = AssistantState.Listening("")
+            val said = listener { p -> _state.value = AssistantState.Listening(p) }
+            if (said.isNullOrBlank()) { _state.value = AssistantState.Idle; return@launch }
+            answer(said)
+        }
+    }
+
     private suspend fun answer(query: String) {
         _state.value = AssistantState.Thinking(query)
         val answer = provider.answer(query)
+        if (answer is Answer.Handoff) { _state.value = AssistantState.Idle; onHandoff(answer.query); return }
         _state.value = AssistantState.Showing(query, answer, counting = false)
         speaker.speak(answer.say)
         _state.value = AssistantState.Showing(query, answer, counting = true)

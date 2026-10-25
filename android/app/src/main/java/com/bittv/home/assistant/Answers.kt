@@ -16,6 +16,8 @@ sealed interface Answer {
     /** A picture answer has no text on screen: it is spoken. */
     data class Picture(val imageUrl: String, val fallbackUrl: String?, val title: String, override val say: String) : Answer
     data class Text(val title: String, val body: String, override val say: String) : Answer
+    /** Not BitTV's to answer (play something, smart home, apps…): handed to Google Assistant as spoken. */
+    data class Handoff(val query: String) : Answer { override val say get() = "" }
 }
 
 /** Reads an answer aloud and returns when it has finished (or immediately if cancelled). */

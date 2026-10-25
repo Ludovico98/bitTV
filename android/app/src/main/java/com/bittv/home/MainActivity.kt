@@ -13,6 +13,7 @@ import com.bittv.home.ui.theme.TvCanvas
 
 class MainActivity : ComponentActivity() {
     private val homeSignal = mutableIntStateOf(0)
+    private val askSignal = mutableIntStateOf(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -22,13 +23,14 @@ class MainActivity : ComponentActivity() {
         val skipBoot = intent.getBooleanExtra(EXTRA_SKIP_BOOT, false) ||
             savedInstanceState != null || !bootGate().shouldPlay(bootCount())
         val demoCatalog = intent.getBooleanExtra(EXTRA_DEMO_CATALOG, false)
-        setContent { BitTvTheme { TvCanvas { BitTvRoot(graph, skipBoot, homeSignal.intValue, demoCatalog) } } }
+        setContent { BitTvTheme { TvCanvas { BitTvRoot(graph, skipBoot, homeSignal.intValue, demoCatalog, askSignal.intValue) } } }
     }
 
     // singleTask: pressing Home while BitTV is already in front arrives here
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         if (intent.hasCategory(Intent.CATEGORY_HOME)) homeSignal.intValue++
+        if (intent.action == ACTION_ASK) askSignal.intValue++   // the remote's mic, sent by the Home helper
     }
 
     private fun bootGate(): BootGate {
@@ -39,5 +41,5 @@ class MainActivity : ComponentActivity() {
 
     private fun bootCount(): Int? = runCatching { Settings.Global.getInt(contentResolver, Settings.Global.BOOT_COUNT) }.getOrNull()
 
-    companion object { const val EXTRA_SKIP_BOOT = "skipBoot"; const val EXTRA_DEMO_CATALOG = "demoCatalog" }
+    companion object { const val EXTRA_SKIP_BOOT = "skipBoot"; const val EXTRA_DEMO_CATALOG = "demoCatalog"; const val ACTION_ASK = "com.bittv.home.ASK" }
 }

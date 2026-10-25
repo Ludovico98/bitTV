@@ -3,6 +3,8 @@ package com.bittv.home.assistant
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -101,5 +103,31 @@ class AssistantControllerTest {
         c.ask("second"); runCurrent(); advanceTimeBy(5_000); runCurrent()
         assertEquals("second", (c.state.value as AssistantState.Showing).query)
         assertEquals(1, s.spoken.size)
+    }
+}
+
+class AssistantListenTest {
+    @Test fun spokenQuestionIsAnsweredAndPartialsShown() = kotlinx.coroutines.test.runTest {
+        var whileHearing: AssistantState? = null
+        val c = AssistantController(this, EstimatedSpeaker, AnswerProvider { Answer.Text("t", "b", "ok") }, showForMs = 60_000)
+        c.listen { onPartial -> onPartial("who was"); whileHearing = c.state.value; "who was Leonardo" }
+        advanceTimeBy(10_000)
+        assertEquals(AssistantState.Listening("who was"), whileHearing)
+        val s = c.state.value
+        assertTrue("$s", s is AssistantState.Showing && s.query == "who was Leonardo")
+        c.dismiss()
+    }
+
+    @Test fun nothingHeardGoesQuietlyBackToIdle() = kotlinx.coroutines.test.runTest {
+        val c = AssistantController(this, EstimatedSpeaker, AnswerProvider { error("not asked") })
+        c.listen { null }; advanceUntilIdle()
+        assertEquals(AssistantState.Idle, c.state.value)
+    }
+
+    @Test fun handoffGoesToGoogleAndLeavesTheSectionAlone() = kotlinx.coroutines.test.runTest {
+        val handed = mutableListOf<String>()
+        val c = AssistantController(this, EstimatedSpeaker, AnswerProvider { Answer.Handoff(it) }, onHandoff = { handed += it })
+        c.listen { "play Dune" }; advanceUntilIdle()
+        assertEquals(listOf("play Dune"), handed); assertEquals(AssistantState.Idle, c.state.value)
     }
 }

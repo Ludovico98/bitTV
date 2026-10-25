@@ -107,6 +107,7 @@ private fun Quote(q: String) = Text("“$q”", style = Type.Caption.copy(color 
 @Composable
 private fun AnswerBody(a: Answer) {
     when (a) {
+        is Answer.Handoff -> {}   // never shown: handed to Google Assistant
         is Answer.Weather -> Column(Modifier.padding(top = 6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 WeatherScene(a.kind, Modifier.size(85.dp, 75.dp))

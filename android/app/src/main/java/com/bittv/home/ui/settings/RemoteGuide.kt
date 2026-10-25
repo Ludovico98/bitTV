@@ -41,7 +41,7 @@ val RemoteKeys = listOf(
     RemoteKey("OK", "Open, play or select. On an Assistant answer, closes it straight away.", "Enter"),
     RemoteKey("Back", "Close the menu, answer or page you are on. On Home, back to the top.", "Esc"),
     RemoteKey("Home", "Back to the top of BitTV Home from anywhere, inside any app.", onTvOnly = true),
-    RemoteKey("Mic", "Ask the Assistant: the answer appears in the active section, read aloud.", "M", onTvOnly = true),
+    RemoteKey("Mic", "On BitTV: ask — weather, time, who/what is… — answered in the active section, read aloud; anything else goes to Google Assistant. In apps: Google Assistant.", "M", onTvOnly = true),
     RemoteKey("Netflix", "Opens Netflix.", onTvOnly = true),
     RemoteKey("YouTube", "Opens SmartTube (remapped with Button Mapper).", onTvOnly = true),
     RemoteKey("Input", "Switch HDMI input: the PlayStation 5 is HDMI 1.", onTvOnly = true),
@@ -76,7 +76,7 @@ fun RemoteGuide(onClose: () -> Unit, modifier: Modifier = Modifier) {
             }
         }
         Spacer(Modifier.height(8.dp))
-        Text("Home and the app buttons work once BitTV is on the TV; the Mic needs the remote helper set up with it.", style = Type.Caption.copy(color = Ink3))
+        Text("Home and the Mic need the BitTV Home button helper (Settings → Accessibility).", style = Type.Caption.copy(color = Ink3))
         Spacer(Modifier.height(14.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             PillButton("Close", onClose, Modifier.focusRequester(close).testTag("remote:close"))
