@@ -180,8 +180,8 @@ fun HomeScreen(
                         ShortcutButtons(onFocused = { lastContent = it; lastRowKey = null }, items = listOf(
                             Shortcut("Search", Glyph.SEARCH, actions::openSearch),
                             Shortcut("Cast", Glyph.CAST) { castReturn = lastContent; castOpen = true; actions.cast() },
-                            Shortcut("Browser", Glyph.GLOBE) { },
-                            Shortcut("Media", Glyph.MEDIA) { },
+                            Shortcut("Browser", Glyph.GLOBE, actions::openBrowser),
+                            Shortcut("Media", Glyph.MEDIA, actions::openMedia),
                             Shortcut("Settings", Glyph.SETTINGS, actions::openSettings),
                         ))
                         Spacer(Modifier.weight(1f))
@@ -219,7 +219,8 @@ fun HomeScreen(
         if (castOpen) {
             // a light scrim says the menu is in charge; it sits just under the Cast button
             Box(Modifier.fillMaxSize().background(Color(0x59000000)))
-            CastMenu(state.castDevices, state.tvName, onClose = { castOpen = false },
+            CastMenu(state.tvName, find = if (state.castDevices.isNotEmpty()) { { state.castDevices } } else actions::findCastDevices,
+                onClose = { castOpen = false },
                 Modifier.padding(start = ContentX + RowStartPad + 46.dp, top = 80.dp))
         }
 

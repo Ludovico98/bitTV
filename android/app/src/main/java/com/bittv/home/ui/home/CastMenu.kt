@@ -63,11 +63,17 @@ fun castHowTo(d: CastDevice, tvName: String): String = when (d.kind) {
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun CastMenu(devices: List<CastDevice>, tvName: String, onClose: () -> Unit, modifier: Modifier = Modifier) {
+fun CastMenu(tvName: String, find: suspend () -> List<CastDevice>, onClose: () -> Unit, modifier: Modifier = Modifier) {
     val motion = LocalMotion.current
     val first = remember { FocusRequester() }
     var chosen by remember { mutableStateOf<String?>(null) }
     val open = remember { Animatable(if (motion.enabled) 0f else 1f) }
+    // what is really on the network, searched each time the menu opens (and on "Search again")
+    var searchRun by remember { mutableStateOf(0) }
+    var devices by remember { mutableStateOf<List<CastDevice>?>(null) }
+    LaunchedEffect(searchRun) { devices = null; devices = find() }
+    // after the results are drawn, so focus lands on the first device rather than where "first" was before
+    LaunchedEffect(devices) { if (devices != null) first.requestFocus() }
     LaunchedEffect(Unit) { first.requestFocus(); open.animateTo(1f, motion.tween(160)) }
     BackHandler(onBack = onClose)
     Column(
@@ -88,21 +94,27 @@ fun CastMenu(devices: List<CastDevice>, tvName: String, onClose: () -> Unit, mod
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Text("CAST TO $tvName".uppercase(), style = Type.Kicker, modifier = Modifier.padding(start = 12.dp, top = 8.dp, bottom = 6.dp))
-        if (devices.isEmpty()) {
-            Text("No phones or computers seen yet. Open the Cast or AirPlay menu on your device and it appears here.",
+        val list = devices
+        when {
+            list == null -> Text("Searching your network…", style = Type.Body.copy(color = Ink2), modifier = Modifier.padding(12.dp))
+            list.isEmpty() -> Text("No phones or computers found on your Wi-Fi. Make sure yours is on the same network, " +
+                "then open Cast or Screen Mirroring on it — this TV appears as $tvName.",
                 style = Type.Body.copy(color = Ink2), modifier = Modifier.padding(12.dp))
         }
-        devices.forEachIndexed { i, d ->
+        list.orEmpty().forEachIndexed { i, d ->
             DeviceRow(d, if (chosen == d.id) castHowTo(d, tvName) else null,
                 if (i == 0) Modifier.focusRequester(first) else Modifier) { chosen = if (chosen == d.id) null else d.id }
         }
+        // always a focus target, also while searching or when nothing was found
+        DeviceRow(CastDevice("search", "Search again", CastDevice.Kind.ANDROID), null,
+            if (list.isNullOrEmpty()) Modifier.focusRequester(first) else Modifier, icon = false) { searchRun++ }
         Spacer(Modifier.height(2.dp))
         Text("Miracast and T-Cast mirroring are on too.", style = Type.Caption, modifier = Modifier.padding(start = 12.dp, bottom = 6.dp))
     }
 }
 
 @Composable
-private fun DeviceRow(d: CastDevice, howTo: String?, modifier: Modifier, onClick: () -> Unit) {
+private fun DeviceRow(d: CastDevice, howTo: String?, modifier: Modifier, icon: Boolean = true, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     val fg = if (focused) OnLight else Ink
     Column(
@@ -115,12 +127,12 @@ private fun DeviceRow(d: CastDevice, howTo: String?, modifier: Modifier, onClick
             .padding(horizontal = 12.dp, vertical = 9.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            GlyphIcon(when (d.kind) { CastDevice.Kind.IPAD -> Glyph.TABLET; CastDevice.Kind.MAC -> Glyph.LAPTOP; else -> Glyph.PHONE },
+            GlyphIcon(if (!icon) Glyph.SEARCH else when (d.kind) { CastDevice.Kind.IPAD -> Glyph.TABLET; CastDevice.Kind.MAC -> Glyph.LAPTOP; else -> Glyph.PHONE },
                 fg, Modifier.size(22.dp))
             Spacer(Modifier.width(12.dp))
             Column {
                 Text(d.name, style = Type.Label.copy(color = fg, fontWeight = FontWeight.SemiBold))
-                Text("${d.kind.label} · ${d.kind.via}", style = Type.Caption.copy(color = if (focused) OnLight.copy(alpha = 0.65f) else Ink2))
+                if (icon) Text("${d.kind.label} · ${d.kind.via}", style = Type.Caption.copy(color = if (focused) OnLight.copy(alpha = 0.65f) else Ink2))
             }
         }
         if (howTo != null) {

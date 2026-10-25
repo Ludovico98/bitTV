@@ -43,3 +43,14 @@ Then the measurements in `docs/perf.md` ("Still to do on the TV").
 
 Known TV-only item for plan 2: the remote's mic button is taken by the system (Google Assistant) before any app
 sees it; BitTV answering in the active section needs the helper planned in plan 2 (Button Mapper / accessibility).
+
+## TV settings changed (2026-10-25, with Ludovico)
+
+| Setting | Was | Now | Why | Undo |
+|---|---|---|---|---|
+| `settings global tcl_app_livetv_auto_standby` | `HDMI1,HDMI2,HDMI3,HDMI4,AV1` | empty | TCL put the PS5 to rest (CEC `<Standby>` 04:36) whenever you left its input, e.g. pressing Home | `adb shell settings put global tcl_app_livetv_auto_standby HDMI1,HDMI2,HDMI3,HDMI4,AV1` |
+| `com.google.android.apps.tv.launcherx` | disabled by install.sh | **enabled** | Google Assistant refuses to work without it ("not available in this profile yet") | — |
+
+Found on the TV: browser `com.tcl.browser`; media player `com.tcl.ui_mediaCenter` (TCL Media Center: USB and network
+videos, music, pictures); HDMI inputs open in `com.tcl.tv` (Live Channels also claims them, hence the chooser before).
+The HDMI preview sends CEC routing when it connects, so BitTV previews only a device the TV reports as on.

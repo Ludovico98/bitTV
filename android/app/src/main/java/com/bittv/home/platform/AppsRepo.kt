@@ -23,6 +23,8 @@ class AppsRepo(private val packages: Packages) {
     fun launch(app: AppEntry): Boolean = packageFor(app)?.let(packages::launch) ?: false
     fun openStore(app: AppEntry) = packages.openStore(app.packages.first())
     fun banner(app: AppEntry): android.graphics.Bitmap? = packageFor(app)?.let(packages::banner)
+    /** Opens the first of [pkgs] that is installed (the Browser and Media shortcuts); false if none is. */
+    fun launchFirst(pkgs: List<String>): Boolean = pkgs.firstOrNull(packages::isLaunchable)?.let(packages::launch) ?: false
 
     companion object {
         /** The services he has: those whose app is installed on the TV (Settings no longer lists subscriptions). */

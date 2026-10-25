@@ -190,9 +190,15 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
             override fun toggleWatchLater(t: Title) { scope.launch { graph.prefs.toggleWatchLater(t.id) } }
             override fun reorderApps(ids: List<String>) { scope.launch { graph.prefs.setAppOrder(ids) } }
             override fun openInput(inputId: String) {
-                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, android.media.tv.TvContract.buildChannelUriForPassthroughInput(inputId))
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                // straight into TCL's TV app on that input: no "open with TV / Live Channels" chooser
+                val i = Intent(Intent.ACTION_VIEW, android.media.tv.TvContract.buildChannelUriForPassthroughInput(inputId)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                val handlers = context.packageManager.queryIntentActivities(i, 0).map { it.activityInfo.packageName }
+                com.bittv.home.platform.TvApps.inputApp(handlers)?.let { i.setPackage(it) }
+                runCatching { context.startActivity(i) }
             }
+            override fun openBrowser() { if (!demoCatalog) graph.appsRepo.launchFirst(com.bittv.home.platform.TvApps.BROWSER) }
+            override fun openMedia() { if (!demoCatalog) graph.appsRepo.launchFirst(com.bittv.home.platform.TvApps.MEDIA) }
+            override suspend fun findCastDevices() = if (demoCatalog) DemoCatalog.castDevices else graph.network.scan()
             // the card's buttons drive the session shown; with nothing to control, play opens Spotify
             override fun spotify(command: String) {
                 if (demoCatalog) return
@@ -228,7 +234,7 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
                         installed = installed, today = TodayInfo.items(LocalDate.now()),
                         nowPlaying = if (demoCatalog) NowPlaying("Midnight Drive", "Neon Coast", 214, 83, true) else nowPlaying,
                         news = listOf(NewsItem("Space mission returns safely after 200 days in orbit", "BBC News · 12 min ago")),
-                        weather = null, castDevices = DemoCatalog.castDevices, devices = if (demoCatalog) null else devices,
+                        weather = null, devices = if (demoCatalog) null else devices,
                     ),
                     actions, active = top == Screen.Home, returnToken = returnToken, topToken = topToken,
                     assistantOverlay = overlay,

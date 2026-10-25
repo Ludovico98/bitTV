@@ -20,6 +20,7 @@ class AppGraph(context: Context) {
     val appsRepo = AppsRepo(AndroidPackages(context.applicationContext))
     val nowPlaying = com.bittv.home.platform.NowPlayingRepo(context.applicationContext)
     val tvInputs = com.bittv.home.platform.AndroidTvInputs(context.applicationContext)
+    val network = com.bittv.home.platform.NetworkScanner(context.applicationContext)
     val speech = com.bittv.home.platform.SpeechListener(com.bittv.home.platform.AndroidSpeechEngine(context.applicationContext))
     val catalog = CatalogRepo(
         source = BuildConfig.TMDB_KEY.takeIf { it.isNotBlank() }?.let { key -> TmdbCatalog(key) { url, auth -> httpGet(url, auth) } },

@@ -186,9 +186,15 @@ private fun DeviceTile(item: RowItem.Device, animate: Boolean, modifier: Modifie
         FocusTile(onClick = onClick, onFocus = onFocus, width = w, height = h, lift = item.inputId == null,
             modifier = modifier.testTag("tile:dev:${item.key}")) {
             if (live) {
-                if (item.inputId != null) TvPreview(item.inputId, Modifier.fillMaxSize()) else Ps5Preview(animate, Modifier.fillMaxSize())
+                when {
+                    item.inputId == null -> Ps5Preview(animate, Modifier.fillMaxSize())
+                    item.on -> TvPreview(item.inputId, Modifier.fillMaxSize())
+                    // resting: say so, never connect (that would wake it)
+                    else -> Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF1A1F2B), Color(0xFF0B0E14)))),
+                        contentAlignment = Alignment.Center) { Text("In rest mode", style = Type.Label.copy(color = Ink2)) }
+                }
                 Row(Modifier.align(Alignment.BottomStart).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("LIVE", style = Type.Caption.copy(color = Color.White, fontWeight = FontWeight.ExtraBold),
+                    if (item.on) Text("LIVE", style = Type.Caption.copy(color = Color.White, fontWeight = FontWeight.ExtraBold),
                         modifier = Modifier.background(Color(0xFFE5322D), RoundedCornerShape(4.dp)).padding(horizontal = 5.dp))
                     Spacer(Modifier.width(6.dp))
                     Text(item.label, style = Type.Label.copy(color = Color.White))

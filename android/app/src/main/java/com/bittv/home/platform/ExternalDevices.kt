@@ -5,10 +5,11 @@ import android.media.tv.TvInputInfo
 import android.media.tv.TvInputManager
 
 /** One TV input as the system lists it. [parentId] is set for a device the TV recognised over HDMI (CEC). */
-data class InputSnapshot(val id: String, val label: String, val hdmi: Boolean, val parentId: String?, val connected: Boolean)
+data class InputSnapshot(val id: String, val label: String, val hdmi: Boolean, val parentId: String?, val connected: Boolean, val on: Boolean = connected)
 
 /** Something plugged into the TV that can show a picture, with the name it reports (e.g. "PlayStation 5"). */
-data class ExternalDevice(val inputId: String, val label: String, val port: String?)
+/** [on] is false while the device rests (standby): the tile then shows that instead of waking it for a preview. */
+data class ExternalDevice(val inputId: String, val label: String, val port: String?, val on: Boolean = true)
 
 object ExternalDevices {
     /**
@@ -18,7 +19,7 @@ object ExternalDevices {
     fun pick(inputs: List<InputSnapshot>): List<ExternalDevice> {
         val byId = inputs.associateBy { it.id }
         return inputs.filter { it.hdmi && it.parentId != null && it.connected }
-            .map { ExternalDevice(it.id, it.label, it.parentId?.let { p -> byId[p]?.label }) }
+            .map { ExternalDevice(it.id, it.label, it.parentId?.let { p -> byId[p]?.label }, it.on) }
     }
 }
 
@@ -28,8 +29,9 @@ class AndroidTvInputs(private val context: Context) {
 
     fun devices(): List<ExternalDevice> = try {
         ExternalDevices.pick(tim?.tvInputList.orEmpty().map { i ->
+            val state = tim?.getInputState(i.id) ?: TvInputManager.INPUT_STATE_DISCONNECTED
             InputSnapshot(i.id, i.loadLabel(context).toString(), hdmi = i.type == TvInputInfo.TYPE_HDMI, parentId = i.parentId,
-                connected = tim?.getInputState(i.id) != TvInputManager.INPUT_STATE_DISCONNECTED)
+                connected = state != TvInputManager.INPUT_STATE_DISCONNECTED, on = TvApps.mayPreview(state))
         })
     } catch (e: Exception) { emptyList() }
 

@@ -45,6 +45,10 @@ interface HomeActions {
     fun reorderApps(ids: List<String>) {}
     /** Switch the TV to this HDMI input, full screen. */
     fun openInput(inputId: String) {}
+    fun openBrowser() {}
+    fun openMedia() {}
+    /** Phones and computers on the network that can cast to the TV (the Cast menu searches when it opens). */
+    suspend fun findCastDevices(): List<com.bittv.home.model.CastDevice> = emptyList()
 }
 
 /** One cell of a row: a title (with optional progress) or the PS5 / HDMI tiles in Devices. */
@@ -54,7 +58,7 @@ sealed interface RowItem {
         override val key get() = title.id
     }
     /** An HDMI device tile; [inputId] is the real input (null: the demo's stand-in). */
-    data class Device(override val key: String, val label: String, val live: Boolean, val inputId: String? = null) : RowItem
+    data class Device(override val key: String, val label: String, val live: Boolean, val inputId: String? = null, val on: Boolean = true) : RowItem
 }
 
 data class HomeRow(val key: String, val title: String, val note: String? = null, val items: List<RowItem>, val empty: String? = null)
@@ -75,7 +79,7 @@ fun homeRows(s: HomeState): List<HomeRow> {
             byId[p.titleId]?.takeIf { it.isAvailable(subs) }?.let { RowItem.Show(it, p.fraction, p.label, it.id in s.prefs.watchLater) }
         }),
         // real devices when known (none → no row); the demo's stand-ins otherwise
-        HomeRow("dev", "Devices", items = s.devices?.map { RowItem.Device(it.inputId, listOfNotNull(it.label, it.port).joinToString(" · "), live = true, inputId = it.inputId) }
+        HomeRow("dev", "Devices", items = s.devices?.map { RowItem.Device(it.inputId, listOfNotNull(it.label, it.port).joinToString(" · "), live = true, inputId = it.inputId, on = it.on) }
             ?: listOf(RowItem.Device("ps5", "PlayStation 5 · HDMI 1", live = true), RowItem.Device("hdmi2", "HDMI 2", live = false))),
         HomeRow("sug", "Suggested for you", note = "only from your apps",
             items = shows(pool.filter { it.id !in cwIds }.sortedByDescending { it.score }.take(12))),
