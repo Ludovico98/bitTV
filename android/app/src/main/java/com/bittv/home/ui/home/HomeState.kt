@@ -47,6 +47,10 @@ interface HomeActions {
     fun reorderApps(ids: List<String>) {}
     /** Switch the TV to this HDMI input, full screen. */
     fun openInput(inputId: String) {}
+    /** Read the HDMI devices again (their power) — the Devices row is coming up. */
+    fun refreshDevices() {}
+    /** This device's preview showed no picture: show it without one until the TV reports a change. */
+    fun previewBlank(inputId: String) {}
     fun openBrowser() {}
     fun openMedia() {}
     /** Phones and computers on the network that can cast to the TV (the Cast menu searches when it opens). */
@@ -60,7 +64,8 @@ sealed interface RowItem {
         override val key get() = title.id
     }
     /** An HDMI device tile; [inputId] is the real input (null: the demo's stand-in). */
-    data class Device(override val key: String, val label: String, val live: Boolean, val inputId: String? = null, val on: Boolean = true) : RowItem
+    data class Device(override val key: String, val label: String, val live: Boolean, val inputId: String? = null, val on: Boolean = true,
+                      val noPicture: Boolean = false) : RowItem
 }
 
 data class HomeRow(val key: String, val title: String, val note: String? = null, val items: List<RowItem>, val empty: String? = null)
@@ -96,7 +101,7 @@ fun homeRows(s: HomeState): List<HomeRow> {
             byId[p.titleId]?.takeIf { it.isAvailable(subs) }?.let { RowItem.Show(it, p.fraction, star = it.id in s.prefs.watchLater) }
         }),
         // real devices when known (none → no row); the demo's stand-ins otherwise
-        HomeRow("dev", "Devices", items = s.devices?.map { RowItem.Device(it.inputId, listOfNotNull(it.label, it.port).joinToString(" · "), live = true, inputId = it.inputId, on = it.on) }
+        HomeRow("dev", "Devices", items = s.devices?.map { RowItem.Device(it.inputId, listOfNotNull(it.label, it.port).joinToString(" · "), live = true, inputId = it.inputId, on = it.on, noPicture = it.noPicture) }
             ?: listOf(RowItem.Device("ps5", "PlayStation 5 · HDMI 1", live = true), RowItem.Device("hdmi2", "HDMI 2", live = false))),
         HomeRow("sug", "Suggested for you", note = "only from your apps",
             // the best-rated 12, or (rotating) 12 drawn from the best-rated 40

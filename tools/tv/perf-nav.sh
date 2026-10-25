@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Frame times while browsing Home: the same presses every run — from the first row, 4× Right and 4× Left along its
-# tiles, then Down and Up — then gfxinfo's percentiles, framestats' average phase split, and smoothness: how many
+# Frame times while browsing Home: the same presses every run — from the first row, 3× Right and 3× Left along its
+# tiles (Watch Later may hold only 4: a 4th Left went into the app bar), then Down and Up — then gfxinfo's percentiles, framestats' average phase split, and smoothness: how many
 # frame-to-frame steps inside an animation took one vsync (≤ 20 ms at 60 Hz) and the longest one.
 # Only presses the remote's arrows (nothing is changed on the device), so it needs no --apply.
 #   tools/tv/perf-nav.sh 192.168.0.175:5555
@@ -9,11 +9,12 @@ parse_target "$@"
 PKG=com.bittv.home
 # the screensaver may be up: end it first (WAKEUP does nothing to a screen already awake)
 "${ADB[@]}" shell input keyevent KEYCODE_WAKEUP; sleep 1.5
-# Back on Home closes an answer, then puts focus on the banner; Down to the first row: every run starts there
-"${ADB[@]}" shell "input keyevent 4; sleep 0.5; input keyevent 4; sleep 1; input keyevent 20"; sleep 1.5
+# Back on Home closes an answer, then puts focus on the banner; Down to its dots, Down to the first row: every run
+# starts there
+"${ADB[@]}" shell "input keyevent 4; sleep 0.5; input keyevent 4; sleep 1; input keyevent 20; sleep 0.8; input keyevent 20"; sleep 1.5
 "${ADB[@]}" shell dumpsys gfxinfo $PKG reset >/dev/null
-"${ADB[@]}" shell 'for i in 1 2 3 4; do input keyevent 22; sleep 0.4; done
-  for i in 1 2 3 4; do input keyevent 21; sleep 0.4; done
+"${ADB[@]}" shell 'for i in 1 2 3; do input keyevent 22; sleep 0.4; done
+  for i in 1 2 3; do input keyevent 21; sleep 0.4; done
   input keyevent 20; sleep 0.7; input keyevent 19; sleep 0.7'
 "${ADB[@]}" shell dumpsys gfxinfo $PKG | tr -d '\r' | grep -E '^(Total frames|Janky frames:|50th percentile|90th percentile)'
 # framestats: only real frames (Flags=0, completed); times in ns

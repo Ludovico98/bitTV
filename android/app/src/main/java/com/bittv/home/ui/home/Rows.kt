@@ -66,6 +66,7 @@ import com.bittv.home.model.AppEntry
 import com.bittv.home.model.Svc
 import com.bittv.home.model.Title
 import com.bittv.home.model.mainService
+import com.bittv.home.platform.HdmiPreview
 import com.bittv.home.ui.components.AppIcon
 import com.bittv.home.ui.components.FocusTile
 import com.bittv.home.ui.components.PosterArt
@@ -74,6 +75,7 @@ import com.bittv.home.ui.theme.GlassLine
 import com.bittv.home.ui.theme.Ink2
 import com.bittv.home.ui.theme.Ink3
 import com.bittv.home.ui.theme.Type
+import kotlinx.coroutines.delay
 import kotlin.math.sin
 
 /** Left room for the focus glow (the strip starts here, on the banner's edge), and the cut-off peek on the right. */
@@ -93,6 +95,11 @@ fun HomeRowSection(
     onOpen: (Title) -> Unit, onFocusTitle: (Title?) -> Unit, onDevice: (String) -> Unit, modifier: Modifier = Modifier,
     onTileFocused: (FocusRequester) -> Unit = {},
     rowRequester: FocusRequester? = null,
+    /** HDMI devices that are on may show their live picture (the row has focus and Home is in front). */
+    previewDevices: Boolean = false,
+    onPreviewBlank: (String) -> Unit = {},
+    /** True while focus is (or was last, if it was lost) in this row. */
+    ownsFocus: () -> Boolean = { true },
 ) {
     val density = LocalDensity.current
     val spec = remember(density) { with(density) { RowBringIntoView((RowStartPad + TileInset).toPx(), RowPeek.toPx()) } }
@@ -101,6 +108,8 @@ fun HomeRowSection(
     var focusedIndex by remember { mutableIntStateOf(0) }
     LaunchedEffect(row.items) {
         val k = focusedKey ?: return@LaunchedEffect
+        // only for the row in use: the half-hour reshuffle replaces tiles in rows left long ago, and pulled focus back
+        if (!ownsFocus()) return@LaunchedEffect
         if (row.items.none { it.key == k } && row.items.isNotEmpty()) {
             val next = row.items[focusedIndex.coerceAtMost(row.items.lastIndex)]
             requesters[next.key]?.requestFocus()
@@ -141,7 +150,8 @@ fun HomeRowSection(
                     }
                     when (item) {
                         is RowItem.Show -> TitleTile(item, row.key, subs, apps, mod, onOpen = { onOpen(item.title) }, onFocus = { onFocusTitle(item.title) })
-                        is RowItem.Device -> DeviceTile(item, animateDevices, mod, onClick = { onDevice(item.key) }, onFocus = { onFocusTitle(null) })
+                        is RowItem.Device -> DeviceTile(item, animateDevices, previewDevices, mod, onClick = { onDevice(item.key) }, onFocus = { onFocusTitle(null) },
+                            onNoPicture = { item.inputId?.let(onPreviewBlank) })
                     }
                 }
             }
@@ -175,19 +185,26 @@ private fun TitleTile(item: RowItem.Show, rowKey: String, subs: Set<Svc>, apps: 
 }
 
 @Composable
-private fun DeviceTile(item: RowItem.Device, animate: Boolean, modifier: Modifier, onClick: () -> Unit, onFocus: () -> Unit) {
+private fun DeviceTile(item: RowItem.Device, animate: Boolean, preview: Boolean, modifier: Modifier, onClick: () -> Unit, onFocus: () -> Unit,
+                       onNoPicture: () -> Unit) {
     val live = item.live
     val w = if (live) 280.dp else 160.dp; val h = if (live) 158.dp else 90.dp
+    // a session switches the TV's picture path to HDMI: open one only once the row has kept focus for a moment
+    val wanted = preview && item.on && item.inputId != null
+    var tuned by remember { mutableStateOf(false) }
+    LaunchedEffect(wanted) { tuned = false; if (wanted) { delay(HdmiPreview.DWELL_MS); tuned = true } }
     Column(Modifier.width(w)) {
         FocusTile(onClick = onClick, onFocus = onFocus, width = w, height = h, lift = item.inputId == null,
             modifier = modifier.testTag("tile:dev:${item.key}")) {
             if (live) {
                 when {
                     item.inputId == null -> Ps5Preview(animate, Modifier.fillMaxSize())
-                    item.on -> TvPreview(item.inputId, Modifier.fillMaxSize())
+                    item.on && tuned && wanted -> TvPreview(item.inputId, Modifier.fillMaxSize(), onNoPicture)
+                    item.on -> Box(Modifier.fillMaxSize().background(DeviceShade))
                     // resting: say so, never connect (that would wake it)
-                    else -> Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF1A1F2B), Color(0xFF0B0E14)))),
-                        contentAlignment = Alignment.Center) { Text("In rest mode", style = Type.Label.copy(color = Ink2)) }
+                    else -> Box(Modifier.fillMaxSize().background(DeviceShade), contentAlignment = Alignment.Center) {
+                        Text(if (item.noPicture) "No picture" else "In rest mode", style = Type.Label.copy(color = Ink2))
+                    }
                 }
                 Row(Modifier.align(Alignment.BottomStart).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (item.on) Text("LIVE", style = Type.Caption.copy(color = Color.White, fontWeight = FontWeight.ExtraBold),
@@ -198,7 +215,7 @@ private fun DeviceTile(item: RowItem.Device, animate: Boolean, modifier: Modifie
                 Box(Modifier.align(Alignment.TopEnd).padding(8.dp).size(20.dp).background(Color(0x73000000), RoundedCornerShape(10.dp)),
                     contentAlignment = Alignment.Center) { GlyphIcon(Glyph.MUTED, Color.White, Modifier.size(11.dp)) }
             } else {
-                Column(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF1A1F2B), Color(0xFF0B0E14)))),
+                Column(Modifier.fillMaxSize().background(DeviceShade),
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                     GlyphIcon(Glyph.HDMI, Ink3, Modifier.size(27.dp))
                     Text(item.label, style = Type.Label.copy(color = Ink2))
@@ -208,6 +225,8 @@ private fun DeviceTile(item: RowItem.Device, animate: Boolean, modifier: Modifie
         }
     }
 }
+
+private val DeviceShade = Brush.linearGradient(listOf(Color(0xFF1A1F2B), Color(0xFF0B0E14)))
 
 private val GAMES = listOf("Astro’s Playroom", "Gran Turismo 7", "EA Sports FC", "Spider-Man 2", "Returnal", "Ratchet & Clank")
 private val GAME_COLORS = listOf(0xFF3AA0FF, 0xFFD6362E, 0xFF25C26E, 0xFFC3122F, 0xFF7B4DFF, 0xFFFF9F1A).map { Color(it) }

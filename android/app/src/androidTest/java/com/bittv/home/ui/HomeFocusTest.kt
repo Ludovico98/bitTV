@@ -1,6 +1,7 @@
 package com.bittv.home.ui
 
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
@@ -17,6 +18,8 @@ import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.semantics.SemanticsActions
 import com.bittv.home.data.DemoCatalog
 import com.bittv.home.model.AppEntry
+import com.bittv.home.platform.ExternalDevice
+import com.bittv.home.platform.HdmiPreview
 import com.bittv.home.model.Prefs
 import com.bittv.home.model.Svc
 import com.bittv.home.model.Title
@@ -54,13 +57,17 @@ class HomeFocusTest {
         }
     }
 
-    private fun setHome() = rule.setContent {
+    private var topToken by mutableIntStateOf(0)
+    private var rotation by mutableStateOf(0L)
+
+    private fun setHome(devices: List<ExternalDevice>? = null) = rule.setContent {
         BitTvTheme {
             HomeScreen(
                 HomeState(prefs, DemoCatalog.titles, DemoCatalog.progress, DemoCatalog.apps,
                     DemoCatalog.apps.map { it.id }.toSet() - "paramount", TodayInfo.items(LocalDate.of(2026, 10, 25)),
-                    nowPlaying = null, news = emptyList(), weather = null),
+                    nowPlaying = null, news = emptyList(), weather = null, devices = devices, rotation = rotation),
                 actions,
+                topToken = topToken,
             )
         }
     }
@@ -201,6 +208,77 @@ class HomeFocusTest {
         rule.runOnIdle { actions.toggleWatchLater(DemoCatalog.titles.first { it.id == "loworbit" }) }
         rule.waitForIdle()
         assertEquals("row:wl", focusedRow())
+    }
+
+    private fun top(tag: String) = rule.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot.top
+    private fun frames(n: Int) = repeat(n) { rule.mainClock.advanceTimeByFrame() }
+
+    // Up into the first row aimed the page 100 000 px up: the spring reached the top in one frame (2 frames on the TV,
+    // against 13 for Down). It now eases there like any other row and stops exactly where the page started.
+    @Test
+    fun upIntoTheFirstRowEasesAndEndsWhereThePageStarted() {
+        setHome(); focus("hero"); press(Key.DirectionDown); press(Key.DirectionDown)
+        assertEquals("row:wl", focusedRow())
+        val rest = top("row:wl")
+        press(Key.DirectionDown); assertEquals("row:cw", focusedRow())
+        val below = top("row:wl")
+        rule.mainClock.autoAdvance = false
+        rule.onRoot().performKeyInput { pressKey(Key.DirectionUp) }
+        frames(3)
+        val mid = top("row:wl")
+        rule.mainClock.autoAdvance = true; rule.waitForIdle()
+        assertTrue("easing: $below → $mid → $rest", mid > below + 5 && mid < rest - 5)
+        assertEquals(rest, top("row:wl"), 0.5f)
+    }
+
+    // Back on Home from deep down: the banner takes focus (the list may have disposed it) and the page ends exactly
+    // where it started
+    @Test
+    fun backFromDeepDownReturnsToTheBanner() {
+        setHome(); focus("hero"); press(Key.DirectionDown); press(Key.DirectionDown)
+        val rest = top("row:wl")
+        press(Key.DirectionDown, 5); assertEquals("row:movies", focusedRow())
+        topToken++
+        rule.waitForIdle()
+        assertEquals("hero", focusedTag())
+        assertEquals(rest, top("row:wl"), 0.5f)
+    }
+
+    private val ps5 = listOf(ExternalDevice("com.example.none/.Fake/HDMI200004", "PlayStation 5", "HDMI 2", on = true))
+    private fun previewing() = rule.onAllNodesWithTag("preview:${ps5[0].inputId}", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+
+    // a live HDMI preview puts the TV's whole picture on its HDMI settings: open it only once the Devices row itself
+    // has focus and has kept it for a moment, never for the rows around it or scrolled past
+    @Test
+    fun theHdmiPreviewOpensOnlyOnTheDevicesRowAfterADwell() {
+        setHome(ps5); focus("hero")
+        assertFalse(previewing())
+        press(Key.DirectionDown, 3); assertEquals("row:cw", focusedRow())
+        assertFalse("the row above", previewing())
+        rule.mainClock.autoAdvance = false
+        rule.onRoot().performKeyInput { pressKey(Key.DirectionDown) }
+        frames(3)
+        assertFalse("before the dwell", previewing())
+        rule.mainClock.advanceTimeBy(HdmiPreview.DWELL_MS + 100)
+        rule.mainClock.autoAdvance = true; rule.waitForIdle()
+        assertEquals("row:dev", focusedRow())
+        assertTrue("on the Devices row", previewing())
+        press(Key.DirectionDown); assertEquals("row:sug", focusedRow())
+        assertFalse("moved on", previewing())
+    }
+
+    // 2026-10-25 23:30 on the TV: the half-hour reshuffle replaced Suggested's tiles while Series had focus, and focus
+    // jumped back up into Suggested (its "the focused tile was removed" rescue ran for a row that no longer had focus)
+    @Test
+    fun theHalfHourReshuffleLeavesFocusWhereItIs() {
+        setHome(); focus("hero"); press(Key.DirectionDown, 2)
+        press(Key.DirectionDown, 3); assertEquals("row:sug", focusedRow())
+        press(Key.DirectionDown); assertEquals("row:series", focusedRow())
+        val before = focusedTag()
+        rule.runOnIdle { rotation = 57_000 }
+        rule.waitForIdle()
+        assertEquals("row:series", focusedRow())
+        assertTrue(before.startsWith("tile:series:"))
     }
 
     @Test

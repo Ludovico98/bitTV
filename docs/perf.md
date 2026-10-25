@@ -91,3 +91,20 @@ exploration is on (TalkBack keeps working). SurfaceFlinger composes BitTV as one
 
 **Final (2026-10-25, all of the above, release):** 91–96 % of animation steps take one vsync, longest step 50 ms
 (the original build: 29–38 %, up to 217 ms); P50 22 ms, P90 27–38 ms; ~57 frames per run (was ~33).
+
+### 2026-10-25 (late): Up into the first row, HDMI preview gating
+
+`perf-nav.sh` now presses Down twice to reach the first row (the banner's dots became a focus stop) and 3× Right /
+3× Left (Watch Later held 4 titles: the 4th Left went into the app bar, so Down/Up were measured in the app bar).
+Same script, same TV, release builds, 5 runs after a warm-up:
+
+| Build | Animation steps on time | longest step | P50 / P90 |
+|---|---|---|---|
+| Before (81d57e9) | 21–22 / 22 (95–100 %) | 17–33 ms | 23 / 27–38 ms |
+| After | 30–32 / 32–33 (94–97 %) | 33 ms | 22–25 / 26–36 ms |
+
+More steps because Up from Continue Watching to Watch Later now animates: it took **2 frames** (the spring aimed
+100 000 px past the top, covered it in one frame and stopped on the bound) and now **13**, the same as Down
+(Up 11/12, Down 12–14/13–14 steps on time; the one 33 ms step in each is the spring's last, sub-pixel frame).
+The page still rests on exactly the same pixels (rows region identical in before/after screenshots).
+

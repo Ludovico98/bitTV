@@ -34,6 +34,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -146,7 +147,6 @@ fun HomeScreen(
     val windowFocused = LocalWindowInfo.current.isWindowFocused
     LaunchedEffect(windowFocused) { if (windowFocused && !contentFocused) heroRequester.requestFocus() }
     LaunchedEffect(returnToken) { if (returnToken > 0) returnFocus() }
-    LaunchedEffect(topToken) { if (topToken > 0) heroRequester.requestFocus() }
 
     // Vertical page: a LazyColumn whose bring-into-view rule implements the focus line. Lazy layouts take part in
     // focus search (rows beyond the screen are composed on demand), which a hand-translated column cannot do.
@@ -157,9 +157,25 @@ fun HomeScreen(
         val near = rows.indexOfFirst { it.key == focusedSection }; val dev = rows.indexOfFirst { it.key == "dev" }
         dev >= 0 && kotlin.math.abs(near - dev) <= 1
     } }
+    // the Devices row is coming up: read the devices' power again, so a preview only opens for one that is on
+    LaunchedEffect(devicesNear, resumed) { if (devicesNear && resumed) actions.refreshDevices() }
+    // a live HDMI preview puts the whole panel on the HDMI picture settings (local dimming, dynamic backlight on the
+    // device's picture — seen on the TV): only while the Devices row itself has focus
+    val devicesFocused by remember { derivedStateOf { focusedSection == "dev" } }
     val density = LocalDensity.current
+    // every item's height as last laid out, by key: how far the page is from its top ([pageScrolled])
+    val heights = remember { mutableMapOf<String, Int>() }
+    fun keyAt(i: Int) = when (i) { 0 -> "top"; 1 -> "hero"; else -> rows.getOrNull(i - 2)?.key }
     val pageSpec = remember(density, motion) { PageBringIntoView(density, motion) }
     pageSpec.firstRowKey = rows.firstOrNull()?.key
+    pageSpec.scrolled = { pageScrolled(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) { i -> keyAt(i)?.let(heights::get) } }
+    // Back on Home: focus to the banner. Deep down the list may have disposed it (focus would go nowhere): then
+    // straight to the top first
+    LaunchedEffect(topToken) {
+        if (topToken == 0 || heroRequester.requestFocus()) return@LaunchedEffect
+        listState.scrollToItem(0); withFrameNanos { }
+        heroRequester.requestFocus()
+    }
 
     // a press that arrives before anything on Home was focused (e.g. Down held while BitTV appears) places focus on
     // the banner first, like tvOS
@@ -184,7 +200,7 @@ fun HomeScreen(
                 contentPadding = PaddingValues(top = 30.dp, bottom = 400.dp),
             ) {
                 item(key = "top", contentType = "top") {
-                    Row(Modifier.section("top") { focusedSection = it; pageSpec.section = it }.padding(start = RowStartPad, end = 40.dp).fillMaxWidth().height(36.dp),
+                    Row(Modifier.measured("top", heights).section("top") { focusedSection = it; pageSpec.section = it }.padding(start = RowStartPad, end = 40.dp).fillMaxWidth().height(36.dp),
                         verticalAlignment = Alignment.CenterVertically) {
                         ShortcutButtons(onFocused = { lastContent = it; lastRowKey = null }, items = listOf(
                             Shortcut("Search", Glyph.SEARCH, actions::openSearch),
@@ -198,7 +214,7 @@ fun HomeScreen(
                     }
                 }
                 item(key = "hero", contentType = "hero") {
-                    Row(Modifier.section("hero") { focusedSection = it; pageSpec.section = it }.padding(start = RowStartPad, top = 20.dp, bottom = 18.dp)) {
+                    Row(Modifier.measured("hero", heights).section("hero") { focusedSection = it; pageSpec.section = it }.padding(start = RowStartPad, top = 20.dp, bottom = 18.dp)) {
                         Banner(banner, bannerIndex, state.prefs.subs, state.apps, BannerW, BannerH,
                             onClick = actions::openTitle, onFocus = { _: Title -> lastContent = heroRequester; lastRowKey = null },
                             onIndexChange = { bannerIndex = it }, bannerRequester = heroRequester, onDotsFocus = { dotsFocused = it },
@@ -217,9 +233,12 @@ fun HomeScreen(
                         onFocusTitle = {},
                         onDevice = { key -> rows.firstOrNull { it.key == "dev" }?.items?.filterIsInstance<RowItem.Device>()
                             ?.firstOrNull { it.key == key }?.inputId?.let(actions::openInput) },
-                        modifier = Modifier.section(row.key) { focusedSection = it; pageSpec.section = it }.padding(top = 8.dp),
+                        modifier = Modifier.measured(row.key, heights).section(row.key) { focusedSection = it; pageSpec.section = it }.padding(top = 8.dp),
                         onTileFocused = { lastContent = it; lastRowKey = row.key },
                         rowRequester = rowRequesters.getOrPut(row.key) { FocusRequester() },
+                        previewDevices = resumed && devicesFocused,
+                        onPreviewBlank = actions::previewBlank,
+                        ownsFocus = { focusedSection == row.key },
                     )
                 }
             }
@@ -243,16 +262,21 @@ fun HomeScreen(
 }
 
 private fun Modifier.section(key: String, onFocused: (String) -> Unit) = onFocusChanged { if (it.hasFocus) onFocused(key) }
+private fun Modifier.measured(key: String, heights: MutableMap<String, Int>) = onSizeChanged { heights[key] = it.height }
 
 /**
  * The focus line: the focused row's tiles sit where the first row's tiles rest, so every press moves exactly one
  * row and holding Down glides (critically damped spring). The top bar, the banner and the first row bring the page
  * back to the top; a taller row (Devices) rises just enough to fit above the bottom safe area.
+ * The top is aimed at exactly ([scrolled], [topDistance]): aimed 100 000 px past it, the spring covered the whole way
+ * in its first frame and stopped on the bound — Up into the first row jumped (2 frames on the TV, against 13 for Down).
  */
 @OptIn(ExperimentalFoundationApi::class)
 private class PageBringIntoView(density: androidx.compose.ui.unit.Density, private val motion: com.bittv.home.ui.components.Motion) : BringIntoViewSpec {
     var section: String = "hero"
     var firstRowKey: String? = null
+    /** How far the page is from its top, null when unknown. */
+    var scrolled: () -> Int? = { null }
     private val line = with(density) { 370.dp.toPx() }      // where the first row's tiles rest on screen
     private val safe = with(density) { 30.dp.toPx() }
     private val caption = with(density) { 27.dp.toPx() }
@@ -262,7 +286,7 @@ private class PageBringIntoView(density: androidx.compose.ui.unit.Density, priva
     override val scrollAnimationSpec: androidx.compose.animation.core.AnimationSpec<Float> get() = motion.pageSpring()
 
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
-        if (section == "top" || section == "hero" || section == firstRowKey) return -100_000f   // clamped at the top
+        if (section == "top" || section == "hero" || section == firstRowKey) return topDistance(scrolled(), containerSize)
         var d = offset - line
         // the Devices row is laid out by its tallest tile (the PS5 preview), whichever tile is focused
         val h = if (section == "dev") maxOf(size, devTile) else size

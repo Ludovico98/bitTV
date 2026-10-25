@@ -1,5 +1,6 @@
 package com.bittv.home.platform
 
+import android.media.tv.TvInputManager
 import com.bittv.home.data.DemoCatalog
 import com.bittv.home.model.Prefs
 import com.bittv.home.ui.home.HomeState
@@ -50,6 +51,48 @@ class ExternalDevicesTest {
         assertFalse(settle.recent("other", now = 1_000))
         settle.added("ps5", now = 20_000)   // re-added: a new window
         assertTrue(settle.recent("ps5", now = 25_000))
+    }
+
+    // 2026-10-25 22:30: the PS5 in rest mode (CEC power status 1 in dumpsys hdmi_control) while the TV kept its re-added
+    // input CONNECTED — the preview opened, the panel switched to HDMI and dimmed the whole screen on the black picture
+    @Test fun cecStandbyOutranksAConnectedInput() {
+        val ps5 = tv.map { if (it.parentId != null) it.copy(power = CecPower.STANDBY) else it }
+        assertEquals(listOf(false), ExternalDevices.pick(ps5).map { it.on })
+        val going = tv.map { if (it.parentId != null) it.copy(power = CecPower.TO_STANDBY) else it }
+        assertEquals(listOf(false), ExternalDevices.pick(going).map { it.on })
+    }
+
+    @Test fun cecOnOrUnknownLeavesItToTheInputState() {
+        for (p in listOf(CecPower.ON, CecPower.TO_ON, null)) {
+            assertEquals("power $p", listOf(true), ExternalDevices.pick(tv.map { if (it.parentId != null) it.copy(power = p) else it }).map { it.on })
+        }
+        assertEquals(listOf(false), ExternalDevices.pick(tv.map { if (it.parentId != null) it.copy(power = CecPower.ON, on = false) else it }).map { it.on })
+    }
+
+    @Test fun aDeviceWhosePreviewShowedNoPictureIsNotTunedAgain() {
+        val d = ExternalDevices.pick(tv.map { if (it.parentId != null) it.copy(blank = true) else it }).single()
+        assertFalse(d.on); assertTrue(d.noPicture)
+    }
+
+    @Test fun noPictureLastsUntilTheTvReportsAChangeForThatInput() {
+        val m = NoPicture()
+        m.mark("ps5"); m.mark("hdmi3")
+        assertTrue("ps5" in m)
+        m.changed("ps5")
+        assertFalse("ps5" in m); assertTrue("hdmi3" in m)
+        m.clear()   // Home shown again: what changed while away was not seen
+        assertFalse("hdmi3" in m)
+    }
+
+    // what the TCL's HDMI session reports (TvInputManagerService log): UNKNOWN as it starts, then WEAK_SIGNAL ~0.2 s
+    // later when the device sends nothing; a device that goes to rest mid-preview reports UNKNOWN after a picture
+    @Test fun whenAPreviewGivesUp() {
+        assertFalse(PreviewSignal.blank(TvInputManager.VIDEO_UNAVAILABLE_REASON_UNKNOWN, hadPicture = false))
+        assertTrue(PreviewSignal.blank(TvInputManager.VIDEO_UNAVAILABLE_REASON_UNKNOWN, hadPicture = true))
+        assertTrue(PreviewSignal.blank(TvInputManager.VIDEO_UNAVAILABLE_REASON_WEAK_SIGNAL, hadPicture = false))
+        assertFalse(PreviewSignal.blank(TvInputManager.VIDEO_UNAVAILABLE_REASON_TUNING, hadPicture = true))
+        assertFalse(PreviewSignal.blank(TvInputManager.VIDEO_UNAVAILABLE_REASON_BUFFERING, hadPicture = true))
+        assertTrue(PreviewSignal.GIVE_UP_MS in 1_000..4_000)
     }
 
     // TCL's HDMI session (TvPassThroughSession.onTune) skips its CEC device select — the <Set Stream Path> that

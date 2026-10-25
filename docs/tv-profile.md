@@ -85,8 +85,23 @@ The message persisted with both enabled, after restarting the Assistant app: the
   over Home. Releasing the session (or Home taking over) ran `deviceSelect(0)` + TCL's auto-switch standby →
   `<Standby>` to the PS5. The TCL session skips both when the tune params carry `isCecDeviceDisable=true` (read from
   `TIF_TvInput.apk` with dexdump); BitTV's preview now always passes it (`HdmiPreview.TUNE_FLAGS`). Verified on the
-  TV: Home and the Devices row with the PS5 in standby send no CEC. Not yet seen: the live picture of a PS5 that is
-  on with the flag set.
+  TV: Home and the Devices row with the PS5 in standby send no CEC. Live picture of a PS5 that is on, with the flag
+  set: works (`onVideoAvailable` ~0.5 s after tuning), no CEC sent.
+- **An HDMI preview changes the whole panel's picture (logcat, 2026-10-25):** opening any session on the PS5's input
+  makes TCL switch the panel's picture source to HDMI (`TclpqDBC setInputSource … 16`, `MSG_OPEN_STREAM:
+  setInputSource = 16`; releasing it sets 21 again). The dynamic backlight (`<DBC> alg_dbc_set_backlight_pdim`) then
+  follows the *HDMI* picture: with the PS5 in standby (black) it dimmed Home's whole screen; with the PS5 on, pdim
+  ramped 27 → 101 within ~2 s and the local-dimming mode, gamma and HDR LUTs changed too (`LD_MODE:3` → `1`). So even
+  a working preview restyles the whole UI while it is open. BitTV therefore opens one only when (a) the device is on
+  by CEC — `TvInputInfo.getHdmiDeviceInfo().getDevicePowerStatus()`, system APIs that reflection reaches from a normal
+  app on this TV (no hidden-API warning; read 0 with the PS5 on, 1 in rest mode) — because the input state alone
+  is wrong: a re-added input keeps CONNECTED for good (PS5 `power_status: 1`, input `state: 0`, 22:30); (b) the
+  Devices row itself has had focus for 0.6 s (passing rows opened and closed sessions within ~10 ms); and (c) it
+  closes the session at the first "no picture" (`onVideoUnavailable` WEAK_SIGNAL arrives ~0.2 s after tuning a
+  resting PS5: measured 0.26 s on HDMI, no pdim change) and does not retune until the TV reports a change.
+- **Installing BitTV over itself brings up whatever task is under it.** At 22:39 that was a `com.tcl.tv/.TVActivity`
+  on the PS5's input left from opening the PS5 tile earlier: it came to the front, sent `<Set Stream Path>` and woke
+  the PS5. Before `adb install -r`, check `dumpsys activity recents` and remove such a task (`am stack remove <id>`).
 - Compose treats *any* enabled accessibility service (here Button Mapper and the Home helper) as a reason to diff
   semantics every frame; `ComposeA11y` turns that off unless a screen reader is on.
 - Build on this machine with `JAVA_HOME=~/.local/jdks/jdk-21.0.13+9` (the system JDK 21 is a JRE without javac);

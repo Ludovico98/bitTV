@@ -255,6 +255,9 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
                 com.bittv.home.platform.TvApps.inputApp(handlers)?.let { i.setPackage(it) }
                 runCatching { context.startActivity(i) }
             }
+            // off the main thread: a dozen binder calls, made while the page is still moving
+            override fun refreshDevices() { if (!demoCatalog) scope.launch { devices = withContext(Dispatchers.IO) { graph.tvInputs.devices() } } }
+            override fun previewBlank(inputId: String) { if (!demoCatalog) graph.tvInputs.noPicture(inputId) }
             override fun openBrowser() { if (!demoCatalog) graph.appsRepo.launchFirst(com.bittv.home.platform.TvApps.BROWSER) }
             override fun openMedia() { if (!demoCatalog) graph.appsRepo.launchFirst(com.bittv.home.platform.TvApps.MEDIA) }
             override suspend fun findCastDevices() = if (demoCatalog) DemoCatalog.castDevices else graph.network.scan()
