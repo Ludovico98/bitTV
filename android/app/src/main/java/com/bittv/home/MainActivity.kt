@@ -20,7 +20,8 @@ class MainActivity : ComponentActivity() {
         // benchmarks and tests pass skipBoot
         val skipBoot = intent.getBooleanExtra(EXTRA_SKIP_BOOT, false) ||
             savedInstanceState != null || !bootGate().shouldPlay(bootCount())
-        setContent { BitTvTheme { BitTvRoot(graph, skipBoot, homeSignal.intValue) } }
+        val demoCatalog = intent.getBooleanExtra(EXTRA_DEMO_CATALOG, false)
+        setContent { BitTvTheme { BitTvRoot(graph, skipBoot, homeSignal.intValue, demoCatalog) } }
     }
 
     // singleTask: pressing Home while BitTV is already in front arrives here
@@ -37,5 +38,5 @@ class MainActivity : ComponentActivity() {
 
     private fun bootCount(): Int? = runCatching { Settings.Global.getInt(contentResolver, Settings.Global.BOOT_COUNT) }.getOrNull()
 
-    companion object { const val EXTRA_SKIP_BOOT = "skipBoot" }
+    companion object { const val EXTRA_SKIP_BOOT = "skipBoot"; const val EXTRA_DEMO_CATALOG = "demoCatalog" }
 }

@@ -56,7 +56,7 @@ fun DetailsScreen(
     val playFocus = remember { FocusRequester() }
     LaunchedEffect(title.id) { playFocus.requestFocus() }
     Box(Modifier.fillMaxSize().background(Bg)) {
-        PosterArt(title, Modifier.fillMaxSize(), showTitle = false)
+        PosterArt(title, Modifier.fillMaxSize(), showTitle = false, imageWidth = 1280)
         Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Color(0xF505070B), 0.45f to Color(0xBF05070B), 1f to Color(0x2605070B))))
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to Color(0xE605070B))))
         Column(Modifier.padding(start = 80.dp, top = 112.dp).widthIn(max = 480.dp)) {

@@ -32,7 +32,12 @@ data class Title(
     val score: Double,
     val font: TitleFont,
     val blurb: String,
+    /** TMDB backdrop path ("/abc.jpg"); null for the demo posters, which are drawn. */
+    val art: String? = null,
 )
+
+/** A TMDB image URL at one of its fixed widths (300, 780, 1280). */
+fun tmdbImage(path: String, width: Int): String = "https://image.tmdb.org/t/p/w$width$path"
 
 data class Progress(val titleId: String, val fraction: Float, val label: String)
 

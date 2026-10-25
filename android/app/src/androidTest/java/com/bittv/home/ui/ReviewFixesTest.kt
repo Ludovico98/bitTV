@@ -53,7 +53,7 @@ private fun tagsUp(n: SemanticsNode): List<String> {
 /** Paths found by the final review, on the real app (screen stack, Back, Home key). */
 class ReviewFixesAppTest {
     private val app get() = ApplicationProvider.getApplicationContext<BitTvApp>()
-    private val intent = Intent(ApplicationProvider.getApplicationContext(), MainActivity::class.java).putExtra(MainActivity.EXTRA_SKIP_BOOT, true)
+    private val intent = Intent(ApplicationProvider.getApplicationContext(), MainActivity::class.java).putExtra(MainActivity.EXTRA_SKIP_BOOT, true).putExtra(MainActivity.EXTRA_DEMO_CATALOG, true)
     @get:Rule val rule = AndroidComposeTestRule(ActivityScenarioRule<MainActivity>(intent)) { r -> var a: MainActivity? = null; r.scenario.onActivity { a = it }; a!! }
 
     @After fun restoreWatchLater() = runBlocking { app.graph.prefs.setWatchLater(Prefs().watchLater) }

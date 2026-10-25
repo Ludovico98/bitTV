@@ -1,8 +1,16 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.baselineprofile)
 }
+
+// The TMDB key lives in local.properties (never committed): tmdb.apiKey=<v3 key or v4 read access token>.
+// Without it BitTV shows the demo catalogue.
+val tmdbKey: String = Properties().apply {
+    rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+}.getProperty("tmdb.apiKey", "").trim()
 
 android {
     namespace = "com.bittv.home"
@@ -15,6 +23,7 @@ android {
         versionCode = 1
         versionName = "0.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "TMDB_KEY", "\"$tmdbKey\"")
     }
 
     buildTypes {
@@ -28,7 +37,7 @@ android {
         }
     }
 
-    buildFeatures { compose = true }
+    buildFeatures { compose = true; buildConfig = true }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -59,6 +68,7 @@ dependencies {
     baselineProfile(project(":baselineprofile"))
 
     testImplementation(libs.junit)
+    testImplementation(libs.org.json)   // the real org.json: android.jar only has stubs on the JVM
     testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

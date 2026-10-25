@@ -48,7 +48,7 @@ fun Banner(items: List<Title>, index: Int, subs: Set<Svc>, apps: List<AppEntry>,
         shape = RoundedCornerShape(17.dp), focusScale = 1.025f, modifier = modifier) {
         Crossfade(current, animationSpec = LocalMotion.current.tween(400), label = "slide") { t ->
             Box(Modifier.fillMaxSize()) {
-                PosterArt(t, Modifier.fillMaxSize(), showTitle = false)
+                PosterArt(t, Modifier.fillMaxSize(), showTitle = false, imageWidth = 1280)
                 Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(
                     0f to Color.Black.copy(alpha = 0.72f), 0.55f to Color.Black.copy(alpha = 0.25f), 0.8f to Color.Transparent)))
                 SlideInfo(t, subs, apps, Modifier.align(Alignment.BottomStart).padding(start = 28.dp, bottom = 32.dp).widthIn(max = 320.dp))

@@ -39,6 +39,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.bittv.home.AppGraph
+import com.bittv.home.data.CatalogRepo
+import com.bittv.home.data.DemoCatalog
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import com.bittv.home.model.AppEntry
 import com.bittv.home.model.NewsItem
 import com.bittv.home.model.NowPlaying
@@ -71,10 +76,16 @@ sealed interface Screen {
 /** The screen stack. Home stays composed underneath so it keeps its place; Back pops, Back on Home goes to the top. */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0) {
+fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, demoCatalog: Boolean = false) {
     val prefs by graph.prefs.prefs.collectAsStateWithLifecycle(initialValue = Prefs())
     val scope = rememberCoroutineScope()
-    val apps = graph.catalog.apps
+    val apps = graph.apps
+    val live by graph.catalog.state.collectAsStateWithLifecycle()
+    // tests pin the demo catalogue so their titles don't depend on what is popular today
+    val catalog = if (demoCatalog) CatalogRepo.State(DemoCatalog.titles, DemoCatalog.progress, CatalogRepo.Source.DEMO) else live
+    // the catalogue refreshes while Home is in front (CatalogRepo skips it when its copy is under 12 h old)
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(demoCatalog) { if (!demoCatalog) lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) { graph.catalog.refresh() } }
     val stack = remember { mutableStateListOf<Screen>(Screen.Home) }
     var returnToken by remember { mutableIntStateOf(0) }
     var topToken by remember { mutableIntStateOf(0) }
@@ -105,7 +116,7 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0) {
         else push(Screen.NotInstalled(a))
     fun play(t: Title, svc: Svc) {
         val app = apps.firstOrNull { it.svc == svc }
-        val p = graph.catalog.progress.firstOrNull { it.titleId == t.id }
+        val p = catalog.progress.firstOrNull { it.titleId == t.id }
         if (app != null && app.id !in installed) push(Screen.NotInstalled(app))
         else push(Screen.Opening(app, svc.label, "Playing “${t.name}”" + (p?.let { " · ${it.label}" } ?: "")))
     }
@@ -148,7 +159,7 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0) {
             Box(if (top != Screen.Home) Modifier.focusProperties { onEnter = { cancelFocusChange() } }.focusGroup() else Modifier) {
                 HomeScreen(
                     HomeState(
-                        prefs = prefs, titles = graph.catalog.titles, progress = graph.catalog.progress, apps = apps,
+                        prefs = prefs, titles = catalog.titles, progress = catalog.progress, apps = apps,
                         installed = installed, today = TodayInfo.items(LocalDate.now()),
                         nowPlaying = NowPlaying("Midnight Drive", "Neon Coast", 214, 83, true),
                         news = listOf(NewsItem("Space mission returns safely after 200 days in orbit", "BBC News · 12 min ago")),
@@ -160,9 +171,9 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0) {
             }
             when (top) {
                 Screen.Home -> {}
-                Screen.Search -> SearchScreen(graph.catalog.titles, prefs.subs, apps, onOpen = { push(Screen.Details(it)) }, onBack = ::pop,
+                Screen.Search -> SearchScreen(catalog.titles, prefs.subs, apps, onOpen = { push(Screen.Details(it)) }, onBack = ::pop,
                     query = searchQuery, onQueryChange = { searchQuery = it })
-                is Screen.Details -> DetailsScreen(top.title, prefs, graph.catalog.progress.firstOrNull { it.titleId == top.title.id }, apps,
+                is Screen.Details -> DetailsScreen(top.title, prefs, catalog.progress.firstOrNull { it.titleId == top.title.id }, apps,
                     onPlay = { play(top.title, it) }, onToggleWatchLater = { actions.toggleWatchLater(top.title) }, onBack = ::pop)
                 is Screen.NotInstalled -> NotInstalledScreen(top.app, onInstall = { installed = installed + top.app.id; pop() }, onBack = ::pop)
                 Screen.Settings -> SettingsScreen(prefs, graph.prefs, apps, voices = emptyList(), onSample = {},

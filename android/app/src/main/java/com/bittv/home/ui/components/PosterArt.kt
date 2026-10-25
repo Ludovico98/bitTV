@@ -7,6 +7,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.layout.fillMaxSize
+import coil3.compose.AsyncImage
+import com.bittv.home.model.tmdbImage
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -31,10 +37,13 @@ fun Color.mix(amt: Float): Color {
     return Color(red + (t - red) * k, green + (t - green) * k, blue + (t - blue) * k, alpha)
 }
 
-/** The demo posters: the prototype's gradients and the title in its wordmark font. */
+/**
+ * A title's artwork: the TMDB backdrop when there is one (the prototype's gradient shows while it loads), else the
+ * demo gradient; then the title in its wordmark font. [imageWidth] is the TMDB size to load (780 tiles, 1280 large).
+ */
 @Composable
 fun PosterArt(title: Title, modifier: Modifier = Modifier, titleScale: Float = 1f, showTitle: Boolean = true,
-              overlay: @Composable BoxScope.() -> Unit = {}) {
+              imageWidth: Int = 780, overlay: @Composable BoxScope.() -> Unit = {}) {
     val c1 = Color(title.c1); val c2 = Color(title.c2)
     Box(
         modifier.drawWithCache {
@@ -48,10 +57,16 @@ fun PosterArt(title: Title, modifier: Modifier = Modifier, titleScale: Float = 1
             onDrawBehind { drawRect(base); drawRect(low); drawRect(glow); drawRect(streak); drawRect(vignette) }
         },
     ) {
+        title.art?.let { art ->
+            AsyncImage(tmdbImage(art, imageWidth), null, Modifier.fillMaxSize().drawWithContent {
+                drawContent()   // the same bottom shade as the drawn posters keeps the title readable on any artwork
+                drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f)), startY = size.height * 0.4f))
+            }, contentScale = ContentScale.Crop)
+        }
         if (showTitle) {
             Text(
                 if (title.font == TitleFont.BEBAS || title.font == TitleFont.OSWALD) title.name.uppercase() else title.name,
-                style = posterStyle(title.font, titleScale),
+                style = posterStyle(title.font, titleScale), maxLines = 2, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.align(Alignment.BottomStart).padding(start = 9.dp, end = 9.dp, bottom = 8.dp),
             )
         }
