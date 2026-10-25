@@ -76,8 +76,10 @@ import com.bittv.home.ui.theme.Ink3
 import com.bittv.home.ui.theme.Type
 import kotlin.math.sin
 
-/** Left room for the focus glow, and the cut-off peek on the right. */
+/** Left room for the focus glow (the strip starts here, on the banner's edge), and the cut-off peek on the right. */
 val RowStartPad = 32.dp
+/** Tiles sit this far inside the glass strip, as the prototype does. */
+private val TileInset = 12.dp
 private val RowPeek = 120.dp
 
 /**
@@ -93,7 +95,7 @@ fun HomeRowSection(
     rowRequester: FocusRequester? = null,
 ) {
     val density = LocalDensity.current
-    val spec = remember(density) { with(density) { RowBringIntoView(RowStartPad.toPx(), RowPeek.toPx()) } }
+    val spec = remember(density) { with(density) { RowBringIntoView((RowStartPad + TileInset).toPx(), RowPeek.toPx()) } }
     val requesters = remember(row.key) { mutableMapOf<String, FocusRequester>() }
     var focusedKey by remember { mutableStateOf<String?>(null) }
     var focusedIndex by remember { mutableIntStateOf(0) }
@@ -129,7 +131,7 @@ fun HomeRowSection(
                         drawRoundRect(Glass, Offset(x, 2.dp.toPx()), Size(size.width - x + 40.dp.toPx(), size.height - 24.dp.toPx()), CornerRadius(15.dp.toPx()))
                     }
                     .focusProperties { onExit = { if (requestedFocusDirection == FocusDirection.Right) cancelFocusChange() } },
-                contentPadding = PaddingValues(start = RowStartPad, end = 40.dp, top = 10.dp),
+                contentPadding = PaddingValues(start = RowStartPad + TileInset, end = 40.dp, top = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(20.dp),
             ) {
                 items(row.items, key = { it.key }, contentType = { it::class }) { item ->

@@ -229,12 +229,17 @@
   .row { margin-top: 34px; }
   .row h2 { margin: 0 0 4px; font-size: 38px; font-weight: 600; letter-spacing: -.01em; }
   .row h2 span { font-size: 25px; color: var(--ink3); font-weight: 500; margin-left: 12px; }
+  /* The row window reaches 64 px left of the content so tiles scrolled past still show a little, but they fade out
+     well before the app bar. Its box is grown 80 px above and below (and pulled back with negative margins) so the
+     fade mask never cuts the focus glow square. */
   .win {
-    position: relative; margin-left: -64px; padding: 24px 0 54px 40px;   /* 64 px of room for the focus glow */
+    position: relative; margin: -80px 0 -80px -64px; padding: 104px 0 134px 64px;
     overflow-x: clip; overflow-y: visible;
+    -webkit-mask-image: linear-gradient(90deg, transparent 20px, #000 64px); mask-image: linear-gradient(90deg, transparent 20px, #000 64px);
   }
+  /* the glass strip starts on the banner's left edge, leaving a clear gap to the app bar */
   .win::before {
-    content: ""; position: absolute; left: 0; right: 0; top: 4px; bottom: 34px;
+    content: ""; position: absolute; left: 64px; right: 0; top: 84px; bottom: 114px;
     background: var(--glass); border: 1px solid var(--glassLine); border-right: 0; border-radius: 30px 0 0 30px;
   }
   .track { position: relative; display: flex; gap: var(--gap); padding: 0 24px; transition: transform var(--dScroll) ease-out; align-items: flex-start; }
