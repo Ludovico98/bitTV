@@ -33,14 +33,15 @@ tools/tv/install.sh 192.168.0.175:<port>            # read it
 tools/tv/install.sh 192.168.0.175:<port> --apply
 ```
 
-## Decisions for Ludovico (lines marked `[ask]` in `debloat.txt`, all kept for now)
+## Decisions (2026-10-25)
 
-- YouTube and YouTube Music (you use SmartTube) — keep or disable?
-- Miracast / TCL T-Cast phone mirroring?
-- **Game bar** (TCL's game mode / VRR overlay) — keep it if the PS5 uses VRR or ALLM.
-- AirPlay (three packages)?
+- YouTube: **disabled** (SmartTube replaces it). Remap the remote's YouTube button to SmartTube with Button Mapper.
+- Miracast / TCL T-Cast: **kept**. AirPlay: **kept** (iPhones cast through it).
+- Still open: YouTube Music, and the **game bar**. The game bar is TCL's overlay that appears when a console is
+  detected on HDMI: it shows the game mode, VRR, ALLM and frame rate, and holds picture shortcuts. It is kept by
+  default because the PS5 uses VRR/ALLM.
 
-Kept on purpose: Google Assistant (`katniss`, the mic button), Chromecast, HDMI/Live TV (`com.tcl.tv`), Netflix,
+Kept on purpose: Google Assistant (`katniss`, the mic button), Chromecast, Miracast/T-Cast, AirPlay, HDMI/Live TV (`com.tcl.tv`), Netflix,
 Prime Video, the UK catch-up apps, Play Store.
 
 ## Known quirks on this TCL platform (from cleanyourtv's 55C7K-UK notes)

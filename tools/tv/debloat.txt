@@ -4,12 +4,14 @@
 #
 # Every line is DISABLED with `pm disable-user --user 0`, never uninstalled. restore.sh re-enables all of them.
 # Packages that are not on the TV are skipped. Comment a line out (#) to keep that app.
-# Lines marked [ask] are Ludovico's call — they are commented out until he decides.
+# Lines marked [ask] are still open — they are commented out until Ludovico decides.
 #
 # KEEP (never in this list): com.google.android.katniss (Google Assistant / mic button — he wants it),
 # com.google.android.apps.mediashell (Chromecast), com.tcl.tv + com.tcl.tvinput (HDMI / Live TV),
 # all com.mediatek.*, com.google.android.tv.remote.service (the remote's mic), Netflix, Prime Video,
-# the UK catch-up apps, com.android.vending (Play Store).
+# the UK catch-up apps, com.android.vending (Play Store),
+# com.tcl.miracast + com.tcl.magiconnectfree (Miracast / T-Cast, decided 2026-10-25: keep),
+# com.tcl.airplay2 + com.mediatek.AirplayAPK + com.mediatek.airplaydaemon (AirPlay — iPhones cast through it).
 
 # --- TCL tracking and analytics -------------------------------------------------------------
 # NB: on this firmware com.tcl.ttvs is ALSO the firmware updater. Disabled = no system updates;
@@ -40,16 +42,12 @@ com.google.android.partnersetup        # partner attribution
 com.google.android.feedback
 com.android.tv.feedbackconsent
 com.google.android.play.games
+com.google.android.youtube.tv          # YouTube (decided 2026-10-25: SmartTube replaces it; remap the remote's
+                                       # YouTube button to SmartTube with Button Mapper)
 
 # --- [ask] ----------------------------------------------------------------------------------
-# com.google.android.youtube.tv        # YouTube — he uses SmartTube; keep if anyone else watches YouTube
-# com.google.android.youtube.tvmusic   # YouTube Music
-# com.tcl.miracast                     # Miracast screen mirroring
-# com.tcl.magiconnectfree              # TCL T-Cast phone mirroring
-# com.tcl.gamebar                      # game mode / VRR overlay — KEEP if the PS5 uses VRR/ALLM
-# com.tcl.airplay2                     # AirPlay (with the next two lines)
-# com.mediatek.AirplayAPK
-# com.mediatek.airplaydaemon
+# com.google.android.youtube.tvmusic   # YouTube Music (not decided yet)
+# com.tcl.gamebar                      # game mode / VRR overlay — recommended KEEP for the PS5 (VRR/ALLM info)
 
 # --- Home screen (handled by install.sh in the safe order, not by disable.sh) ---------------
 # com.google.android.tungsten.setupwraith   # claims HOME once launcherx is off; check Wi-Fi ownership first
