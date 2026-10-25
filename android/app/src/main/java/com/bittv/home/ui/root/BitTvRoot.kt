@@ -124,6 +124,16 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
     }
     var appArt by remember { mutableStateOf<Map<String, ImageBitmap>>(emptyMap()) }
     var devices by remember { mutableStateOf<List<com.bittv.home.platform.ExternalDevice>>(emptyList()) }
+    // Home's picks change every half hour (Watch Later and Continue Watching stay put)
+    var rotation by remember { mutableStateOf(com.bittv.home.ui.home.Rotation.slot(System.currentTimeMillis())) }
+    LaunchedEffect(demoCatalog) {
+        if (!demoCatalog) lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                rotation = com.bittv.home.ui.home.Rotation.slot(System.currentTimeMillis())
+                kotlinx.coroutines.delay(com.bittv.home.ui.home.Rotation.untilNext(System.currentTimeMillis()) + 500)
+            }
+        }
+    }
     // the clock line's weather (Redhill), every 30 minutes while Home is in front
     var weatherNow by remember { mutableStateOf<com.bittv.home.model.WeatherNow?>(null) }
     LaunchedEffect(demoCatalog) {
@@ -283,7 +293,7 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
                         installed = installed, today = TodayInfo.items(LocalDate.now()),
                         nowPlaying = if (demoCatalog) NowPlaying("Midnight Drive", "Neon Coast", 214, 83, true) else nowPlaying,
                         news = listOf(NewsItem("Space mission returns safely after 200 days in orbit", "BBC News · 12 min ago")),
-                        weather = weatherNow, devices = if (demoCatalog) null else devices,
+                        weather = weatherNow, devices = if (demoCatalog) null else devices, rotation = if (demoCatalog) 0 else rotation,
                     ),
                     actions, active = top == Screen.Home, returnToken = returnToken, topToken = topToken,
                     assistantOverlay = overlay,
