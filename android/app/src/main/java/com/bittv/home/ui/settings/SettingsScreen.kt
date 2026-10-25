@@ -15,6 +15,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,8 +46,18 @@ fun SettingsScreen(
 ) {
     val scope = rememberCoroutineScope()
     val first = remember { FocusRequester() }
-    LaunchedEffect(Unit) { first.requestFocus() }
+    val remoteButton = remember { FocusRequester() }
+    var guide by remember { mutableStateOf(false) }
+    var returnToGuideButton by remember { mutableStateOf(false) }
+    LaunchedEffect(guide) {
+        when {
+            guide -> {}
+            returnToGuideButton -> { returnToGuideButton = false; remoteButton.requestFocus() }
+            else -> first.requestFocus()
+        }
+    }
     Box(Modifier.fillMaxSize().background(Color(0xD1030408)), contentAlignment = Alignment.Center) {
+        if (guide) { RemoteGuide(onClose = { guide = false; returnToGuideButton = true }); return@Box }
         Column(
             Modifier.width(800.dp).background(Color(0xFF121722), RoundedCornerShape(18.dp)).border(1.dp, GlassLine, RoundedCornerShape(18.dp))
                 .padding(horizontal = 16.dp, vertical = 22.dp),
@@ -85,6 +98,8 @@ fun SettingsScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 OptionRow("Replay boot animation", Modifier.width(251.dp), value = "Play", onClick = onReplayBoot)
                 OptionRow("Reset Watch Later", Modifier.width(251.dp), value = "Reset", onClick = { scope.launch { repo.clearWatchLater() } })
+                OptionRow("Remote shortcuts", Modifier.width(251.dp).testTag("opt:remote").focusRequester(remoteButton), value = "Show",
+                    onClick = { guide = true })
             }
         }
     }

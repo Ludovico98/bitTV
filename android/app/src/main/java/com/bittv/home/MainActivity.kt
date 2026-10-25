@@ -9,6 +9,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import com.bittv.home.ui.root.BitTvRoot
 import com.bittv.home.ui.theme.BitTvTheme
+import com.bittv.home.ui.theme.TvCanvas
 
 class MainActivity : ComponentActivity() {
     private val homeSignal = mutableIntStateOf(0)
@@ -21,7 +22,7 @@ class MainActivity : ComponentActivity() {
         val skipBoot = intent.getBooleanExtra(EXTRA_SKIP_BOOT, false) ||
             savedInstanceState != null || !bootGate().shouldPlay(bootCount())
         val demoCatalog = intent.getBooleanExtra(EXTRA_DEMO_CATALOG, false)
-        setContent { BitTvTheme { BitTvRoot(graph, skipBoot, homeSignal.intValue, demoCatalog) } }
+        setContent { BitTvTheme { TvCanvas { BitTvRoot(graph, skipBoot, homeSignal.intValue, demoCatalog) } } }
     }
 
     // singleTask: pressing Home while BitTV is already in front arrives here

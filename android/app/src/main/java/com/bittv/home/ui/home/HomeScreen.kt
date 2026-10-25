@@ -37,6 +37,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.border
 import com.bittv.home.ui.theme.GlassLine
@@ -132,7 +136,13 @@ fun HomeScreen(
     LaunchedEffect(resumed) {
         while (resumed) { clock = now(); delay(60_000L - clock.second * 1000L) }
     }
+    // First focus is the banner. Asked before the TV gives the window key focus, Android may instead hand focus to the
+    // first item on screen (the top of the app bar), so it is asked again when the window gains focus — but only while
+    // nothing in Home's content has had focus yet, so a press already made is never pulled back.
+    var contentFocused by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { heroRequester.requestFocus() }
+    val windowFocused = LocalWindowInfo.current.isWindowFocused
+    LaunchedEffect(windowFocused) { if (windowFocused && !contentFocused) heroRequester.requestFocus() }
     LaunchedEffect(returnToken) { if (returnToken > 0) returnFocus() }
     LaunchedEffect(topToken) { if (topToken > 0) heroRequester.requestFocus() }
 
@@ -144,7 +154,11 @@ fun HomeScreen(
     pageSpec.firstRowKey = rows.firstOrNull()?.key
 
     val showAmbient = state.prefs.ambient
-    Box(modifier.fillMaxSize()) {
+    // a press that arrives before anything on Home was focused (e.g. Down held while BitTV appears) places focus on
+    // the banner first, like tvOS
+    Box(modifier.fillMaxSize().onPreviewKeyEvent { e ->
+        if (!contentFocused && e.type == KeyEventType.KeyDown) heroRequester.requestFocus() else false
+    }) {
         AmbientBackground({ if (showAmbient) ambient else null })
 
         AppBar(state.apps, state.installed, actions::openApp,
@@ -156,6 +170,7 @@ fun HomeScreen(
                 Modifier
                     .fillMaxSize()
                     .padding(start = ContentX)
+                    .onFocusChanged { if (it.hasFocus) contentFocused = true }
                     // applies to the list's own focus group: Up/Down never leave the content for the app bar
                     .focusProperties { onExit = { if (requestedFocusDirection == FocusDirection.Up || requestedFocusDirection == FocusDirection.Down) cancelFocusChange() } },
                 state = listState,
