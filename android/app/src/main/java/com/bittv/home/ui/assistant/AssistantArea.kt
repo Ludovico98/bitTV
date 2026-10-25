@@ -114,7 +114,7 @@ private fun AnswerBody(a: Answer) {
                 Spacer(Modifier.width(11.dp))
                 Column {
                     Text("${a.tempC}°", style = Type.Title.copy(fontSize = 38.sp, fontWeight = FontWeight.SemiBold, lineHeight = 40.sp))
-                    Text(a.label, style = Type.Caption.copy(color = Ink2)); Text("London", style = Type.Caption.copy(color = Ink2))
+                    Text(a.label, style = Type.Caption.copy(color = Ink2)); Text(a.place, style = Type.Caption.copy(color = Ink2))
                 }
             }
             Spacer(Modifier.height(7.dp))

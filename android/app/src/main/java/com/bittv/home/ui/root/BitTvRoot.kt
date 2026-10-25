@@ -122,6 +122,13 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
     }
     var appArt by remember { mutableStateOf<Map<String, ImageBitmap>>(emptyMap()) }
     var devices by remember { mutableStateOf<List<com.bittv.home.platform.ExternalDevice>>(emptyList()) }
+    // the clock line's weather (Redhill), every 30 minutes while Home is in front
+    var weatherNow by remember { mutableStateOf<com.bittv.home.model.WeatherNow?>(null) }
+    LaunchedEffect(demoCatalog) {
+        if (!demoCatalog) lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) { graph.answers.current()?.let { weatherNow = it }; kotlinx.coroutines.delay(30 * 60_000L) }
+        }
+    }
     LaunchedEffect(demoCatalog) {
         if (!demoCatalog) lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             installed = graph.appsRepo.installed(apps)   // an app installed or removed while away shows at once
@@ -254,7 +261,7 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
                         installed = installed, today = TodayInfo.items(LocalDate.now()),
                         nowPlaying = if (demoCatalog) NowPlaying("Midnight Drive", "Neon Coast", 214, 83, true) else nowPlaying,
                         news = listOf(NewsItem("Space mission returns safely after 200 days in orbit", "BBC News · 12 min ago")),
-                        weather = null, devices = if (demoCatalog) null else devices,
+                        weather = weatherNow, devices = if (demoCatalog) null else devices,
                     ),
                     actions, active = top == Screen.Home, returnToken = returnToken, topToken = topToken,
                     assistantOverlay = overlay,

@@ -12,6 +12,7 @@ act am start -n com.bittv.home/.MainActivity
 # available in this profile yet", found on the TV 2026-10-25). BitTV's HomeKeyService (accessibility) takes the Home
 # button and replaces Google's home screen whenever it appears.
 act pm enable com.google.android.apps.tv.launcherx
+act pm enable com.google.android.tungsten.setupwraith   # Google TV Setup: accounts/profiles, also needed by the Assistant
 act cmd notification allow_listener com.bittv.home/com.bittv.home.platform.MediaListener   # Spotify card: what's playing
 act pm grant com.bittv.home android.permission.RECORD_AUDIO                                 # Search: Speak
 # The Home helper: Android 13+ only lets a sideloaded app's accessibility service run once "restricted settings" are

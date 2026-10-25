@@ -35,9 +35,17 @@ class LiveAnswers(
             "It's ${n.format(DateTimeFormatter.ofPattern("h:mm a", Locale.UK)).lowercase()}.")
     }
 
+    private fun forecastUrl() = "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current=temperature_2m,weather_code" +
+        "&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=Europe%2FLondon&forecast_days=4"
+
+    /** The weather right now, for the clock line on Home; null when offline (never invented). */
+    suspend fun current(): com.bittv.home.model.WeatherNow? = fetch(forecastUrl())?.let { body ->
+        runCatching { JSONObject(body).getJSONObject("current").let { c ->
+            com.bittv.home.model.WeatherNow(Math.round(c.getDouble("temperature_2m")).toInt(), kind(c.getInt("weather_code"))) } }.getOrNull()
+    }
+
     private suspend fun weather(q: String): Answer {
-        val body = fetch("https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current=temperature_2m,weather_code" +
-            "&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=Europe%2FLondon&forecast_days=4") ?: return offline()
+        val body = fetch(forecastUrl()) ?: return offline()
         return runCatching {
             val j = JSONObject(body); val cur = j.getJSONObject("current"); val d = j.getJSONObject("daily")
             val codes = d.getJSONArray("weather_code"); val hi = d.getJSONArray("temperature_2m_max"); val lo = d.getJSONArray("temperature_2m_min")
@@ -49,10 +57,10 @@ class LiveAnswers(
             if ("tomorrow" in q.lowercase() || "domani" in q.lowercase()) {
                 val k = kind(codes.getInt(1)); val h = Math.round(hi.getDouble(1)).toInt(); val l = Math.round(lo.getDouble(1)).toInt()
                 Answer.Weather(k, h, "Tomorrow · ${feel(k).replaceFirstChar { it.uppercase() }}", days,
-                    "Tomorrow in $place it will be ${feel(k)}, with a high of $h and a low of $l degrees.")
+                    "Tomorrow in $place it will be ${feel(k)}, with a high of $h and a low of $l degrees.", place)
             } else {
                 val k = kind(cur.getInt("weather_code")); val t = Math.round(cur.getDouble("temperature_2m")).toInt()
-                Answer.Weather(k, t, "Now · ${feel(k).replaceFirstChar { it.uppercase() }}", days, "Right now in $place it's ${feel(k)} and $t degrees.")
+                Answer.Weather(k, t, "Now · ${feel(k).replaceFirstChar { it.uppercase() }}", days, "Right now in $place it's ${feel(k)} and $t degrees.", place)
             }
         }.getOrElse { offline() }
     }

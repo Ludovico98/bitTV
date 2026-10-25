@@ -31,6 +31,18 @@ class LiveAnswersTest {
         assertTrue(a.say, a.say.startsWith("Tomorrow"))
     }
 
+    @Test fun weatherIsForRedhill() = runTest {
+        var asked = ""
+        val a = LiveAnswers({ url -> asked = url; meteo }, place = "Redhill", lat = 51.24, lon = -0.17).answer("what's the weather") as Answer.Weather
+        assertTrue(asked, "latitude=51.24" in asked && "longitude=-0.17" in asked)
+        assertEquals("Redhill", a.place); assertTrue(a.say, "Redhill" in a.say)
+    }
+
+    @Test fun currentWeatherForTheClockLine() = runTest {
+        assertEquals(com.bittv.home.model.WeatherNow(11, WeatherKind.RAIN), answers(online).current())
+        assertEquals(null, answers { null }.current())
+    }
+
     @Test fun weatherCodes() {
         assertEquals(WeatherKind.SUN, LiveAnswers.kind(0)); assertEquals(WeatherKind.SUN, LiveAnswers.kind(1))
         assertEquals(WeatherKind.CLOUD, LiveAnswers.kind(3)); assertEquals(WeatherKind.CLOUD, LiveAnswers.kind(45))

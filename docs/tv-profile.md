@@ -61,3 +61,9 @@ BitTV's `HomeKeyService` keeps BitTV as the home screen while Google's home stay
 when switched on in the TV's own menu (Settings → Accessibility → BitTV Home button), after allowing restricted
 settings for BitTV (`cmd appops set com.bittv.home ACCESS_RESTRICTED_SETTINGS allow`). Writing the setting over adb
 lists it as enabled but the system never binds it. Verified: Home from TV Settings → BitTV.
+
+## Google Assistant: "Sorry, I'm not available in this profile yet" (2026-10-25)
+
+Google TV's home (launcherx) and Google TV Setup (setupwraith) are enabled again — the Assistant needs both.
+The message persisted with both enabled, after restarting the Assistant app: the remaining known cause is Google TV's
+**Apps only mode** (TV settings → Accounts & sign-in → the Google account), which switches the Assistant off.

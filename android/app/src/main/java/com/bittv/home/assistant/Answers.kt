@@ -11,7 +11,8 @@ data class DayForecast(val label: String, val kind: WeatherKind, val hi: Int, va
 /** What the Assistant shows; [say] is what the voice reads out. */
 sealed interface Answer {
     val say: String
-    data class Weather(val kind: WeatherKind, val tempC: Int, val label: String, val days: List<DayForecast>, override val say: String) : Answer
+    data class Weather(val kind: WeatherKind, val tempC: Int, val label: String, val days: List<DayForecast>, override val say: String,
+                       val place: String = "London") : Answer
     data class Clock(val time: String, val date: String, override val say: String) : Answer
     /** A picture answer has no text on screen: it is spoken. */
     data class Picture(val imageUrl: String, val fallbackUrl: String?, val title: String, override val say: String) : Answer
