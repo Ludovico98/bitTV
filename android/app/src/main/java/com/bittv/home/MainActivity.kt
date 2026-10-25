@@ -10,6 +10,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val graph = (application as BitTvApp).graph
-        setContent { BitTvTheme { BitTvRoot(graph) } }
+        // the boot animation plays on a cold start only; benchmarks and tests pass skipBoot
+        val skipBoot = intent.getBooleanExtra(EXTRA_SKIP_BOOT, false)
+        setContent { BitTvTheme { BitTvRoot(graph, skipBoot) } }
     }
+
+    companion object { const val EXTRA_SKIP_BOOT = "skipBoot" }
 }

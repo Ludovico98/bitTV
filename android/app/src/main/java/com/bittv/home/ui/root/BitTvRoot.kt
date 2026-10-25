@@ -1,6 +1,15 @@
 package com.bittv.home.ui.root
 
 import androidx.activity.compose.BackHandler
+import com.bittv.home.ui.boot.BootAnimation
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -54,7 +63,7 @@ sealed interface Screen {
 /** The screen stack. Home stays composed underneath so it keeps its place; Back pops, Back on Home goes to the top. */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun BitTvRoot(graph: AppGraph) {
+fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false) {
     val prefs by graph.prefs.prefs.collectAsStateWithLifecycle(initialValue = Prefs())
     val scope = rememberCoroutineScope()
     val apps = graph.catalog.apps
@@ -62,11 +71,13 @@ fun BitTvRoot(graph: AppGraph) {
     var returnToken by remember { mutableIntStateOf(0) }
     var topToken by remember { mutableIntStateOf(0) }
     var installed by remember { mutableStateOf(apps.map { it.id }.toSet() - "paramount") }   // plan 2: PackageManager
+    var booting by rememberSaveable { mutableStateOf(!skipBoot) }
 
     fun push(s: Screen) { stack.add(s) }
     fun pop() { if (stack.size > 1) { stack.removeAt(stack.lastIndex); if (stack.size == 1) returnToken++ } }
     BackHandler(enabled = stack.size > 1) { pop() }
     BackHandler(enabled = stack.size == 1) { topToken++ }
+    BackHandler(enabled = booting) { booting = false }
 
     fun openApp(a: AppEntry) =
         if (a.id in installed) push(Screen.Opening(a, a.label, "In the real BitTV this hands straight over to ${a.label}."))
@@ -89,7 +100,8 @@ fun BitTvRoot(graph: AppGraph) {
     }
 
     CompositionLocalProvider(LocalMotion provides Motion(prefs.animations)) {
-        Box(Modifier.fillMaxSize()) {
+        // while the boot animation plays, any key skips it
+        Box(Modifier.fillMaxSize().onPreviewKeyEvent { if (booting && it.type == KeyEventType.KeyDown) { booting = false; true } else false }) {
             val top = stack.last()
             // while another screen is on top, focus can't wander into Home behind it
             Box(if (top != Screen.Home) Modifier.focusProperties { onEnter = { cancelFocusChange() } }.focusGroup() else Modifier) {
@@ -110,10 +122,13 @@ fun BitTvRoot(graph: AppGraph) {
                 is Screen.Details -> DetailsScreen(top.title, prefs, graph.catalog.progress.firstOrNull { it.titleId == top.title.id }, apps,
                     onPlay = { play(top.title, it) }, onToggleWatchLater = { actions.toggleWatchLater(top.title) }, onBack = ::pop)
                 is Screen.NotInstalled -> NotInstalledScreen(top.app, onInstall = { installed = installed + top.app.id; pop() }, onBack = ::pop)
-                Screen.Settings -> SettingsScreen(prefs, graph.prefs, apps, voices = emptyList(), onSample = {}, onReplayBoot = {}, onBack = ::pop)
+                Screen.Settings -> SettingsScreen(prefs, graph.prefs, apps, voices = emptyList(), onSample = {},
+                    onReplayBoot = { pop(); booting = true }, onBack = ::pop)
                 is Screen.Opening -> OpeningScreen(top.app, top.label, top.line, onBack = ::pop)
             }
             if (prefs.overscanGuides) Box(Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 30.dp).border(2.dp, Color(0xD9FF4646)))
+            // Home is composed underneath while the logo plays, so it is ready the moment the boot fades out
+            AnimatedVisibility(booting, enter = EnterTransition.None, exit = fadeOut(tween(200))) { BootAnimation(onDone = { booting = false }) }
         }
     }
 }

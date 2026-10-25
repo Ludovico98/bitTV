@@ -7,7 +7,10 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import android.content.Intent
+import androidx.compose.ui.test.junit4.AndroidComposeTestRule
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -61,7 +64,10 @@ class NotInstalledScreenTest {
 }
 
 class RootNavigationTest {
-    @get:Rule val rule = createAndroidComposeRule<MainActivity>()
+    private val intent = Intent(ApplicationProvider.getApplicationContext(), MainActivity::class.java).putExtra(MainActivity.EXTRA_SKIP_BOOT, true)
+    @get:Rule val rule = AndroidComposeTestRule(ActivityScenarioRule<MainActivity>(intent)) { r ->
+        var a: MainActivity? = null; r.scenario.onActivity { a = it }; a!!
+    }
 
     @Test
     fun backFromSearchReturnsToHome() {
