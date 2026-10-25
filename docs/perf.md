@@ -48,3 +48,14 @@ adb -s emulator-5554 shell pm disable-user --user 0 com.google.android.apps.tv.l
 4. If frames miss on the MediaTek GPU, the first candidates are the demo posters' layered gradients (real artwork
    in plan 2 is a single bitmap per tile), the ambient background layers, and each row's offscreen layer for the
    fade next to the app bar (`fadeIntoGap` in `Rows.kt`, 2–3 rows on screen); the fade can become a plain clip.
+
+## TCL TV — Home navigation (2026-10-25)
+
+TCL 55C6K-UK: MediaTek MT5896, Mali-G52 (GLES 3.2, Skia GL), UI 1920×1080 upscaled to the 4K panel, 2.4 GB RAM.
+Release builds, measured with `tools/tv/perf-nav.sh 192.168.0.175:5555` (4× Right, 4× Left, Down, Up from the banner).
+Phases are framestats averages in ms; "swap" is eglSwapBuffers waiting for the GPU.
+Target: P50 ≤ 17 ms, P90 ≤ 25 ms, layout/record ≤ 10 ms.
+
+| Step | Frames | P50 | P90 | input+anim | layout/record | issue | swap (GPU) | total |
+|---|---|---|---|---|---|---|---|---|
+| Baseline (5938a85) | 22 | 85 | 117 | 2.8 | 15.1 | 11.9 | 54.4 | 97.3 |
