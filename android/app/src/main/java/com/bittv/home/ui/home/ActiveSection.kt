@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -61,11 +62,16 @@ fun ActiveSection(
     nowPlaying: NowPlaying?, news: NewsItem?, today: List<TodayItem>, actions: HomeActions, playRequester: FocusRequester,
     width: Dp, height: Dp, modifier: Modifier = Modifier, overlay: (@Composable () -> Unit)? = null,
 ) {
+    var sectionFocused by remember { mutableStateOf(false) }
+    val overlayFocus = remember { FocusRequester() }
+    // an answer replaces the Spotify/news controls: if focus was on them, it moves to the answer (never left on hidden controls)
+    LaunchedEffect(overlay != null) { if (overlay != null && sectionFocused) overlayFocus.requestFocus() }
     Box(
         modifier.testTag("active").size(width, height).clip(RoundedCornerShape(17.dp))
-            .background(Color(0x12FFFFFF)).border(1.dp, GlassLine, RoundedCornerShape(17.dp)),
+            .background(Color(0x12FFFFFF)).border(1.dp, GlassLine, RoundedCornerShape(17.dp))
+            .onFocusChanged { if (overlay == null) sectionFocused = it.hasFocus },
     ) {
-        if (overlay != null) { overlay(); return@Box }
+        if (overlay != null) { Box(Modifier.focusRequester(overlayFocus)) { overlay() }; return@Box }
         Column(Modifier.fillMaxSize().padding(horizontal = 13.dp, vertical = 11.dp)) {
             NowPlayingBlock(nowPlaying, actions, playRequester)
             Divider()

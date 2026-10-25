@@ -1,6 +1,14 @@
 package com.bittv.home.ui.root
 
 import androidx.activity.compose.BackHandler
+import kotlinx.coroutines.delay
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.Key
+import com.bittv.home.ui.assistant.AssistantArea
+import com.bittv.home.assistant.EstimatedSpeaker
+import com.bittv.home.assistant.DemoAnswers
+import com.bittv.home.assistant.AssistantState
+import com.bittv.home.assistant.AssistantController
 import com.bittv.home.ui.boot.BootAnimation
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -72,11 +80,28 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false) {
     var topToken by remember { mutableIntStateOf(0) }
     var installed by remember { mutableStateOf(apps.map { it.id }.toSet() - "paramount") }   // plan 2: PackageManager
     var booting by rememberSaveable { mutableStateOf(!skipBoot) }
+    // the Assistant: demo answers and an estimated reading time until plan 2 wires speech and live answers
+    val demo = remember { DemoAnswers() }
+    val assistant = remember { AssistantController(scope, EstimatedSpeaker, demo) }
+    val assistantState by assistant.state.collectAsStateWithLifecycle()
+    fun askDemo() {
+        while (stack.size > 1) stack.removeAt(stack.lastIndex)
+        val q = demo.nextQuestion()
+        assistant.startListening()
+        scope.launch {   // the question appears word by word, as if spoken
+            val words = q.split(" ")
+            delay(700)
+            words.indices.forEach { i -> assistant.transcript(words.take(i + 1).joinToString(" ")); delay(220) }
+            delay(500)
+            assistant.submit(q)
+        }
+    }
 
     fun push(s: Screen) { stack.add(s) }
     fun pop() { if (stack.size > 1) { stack.removeAt(stack.lastIndex); if (stack.size == 1) returnToken++ } }
     BackHandler(enabled = stack.size > 1) { pop() }
     BackHandler(enabled = stack.size == 1) { topToken++ }
+    BackHandler(enabled = assistantState != AssistantState.Idle) { assistant.dismiss() }   // an answer closes before anything else
     BackHandler(enabled = booting) { booting = false }
 
     fun openApp(a: AppEntry) =
@@ -101,7 +126,14 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false) {
 
     CompositionLocalProvider(LocalMotion provides Motion(prefs.animations)) {
         // while the boot animation plays, any key skips it
-        Box(Modifier.fillMaxSize().onPreviewKeyEvent { if (booting && it.type == KeyEventType.KeyDown) { booting = false; true } else false }) {
+        Box(Modifier.fillMaxSize().onPreviewKeyEvent { e ->
+            when {
+                booting && e.type == KeyEventType.KeyDown -> { booting = false; true }
+                // the remote's mic/search key (M on a keyboard) asks the Assistant; plan 2 listens for real
+                e.type == KeyEventType.KeyDown && (e.key == Key.M || e.key == Key.Search) && stack.last() != Screen.Search -> { askDemo(); true }
+                else -> false
+            }
+        }) {
             val top = stack.last()
             // while another screen is on top, focus can't wander into Home behind it
             Box(if (top != Screen.Home) Modifier.focusProperties { onEnter = { cancelFocusChange() } }.focusGroup() else Modifier) {
@@ -114,6 +146,7 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false) {
                         weather = null,
                     ),
                     actions, active = top == Screen.Home, returnToken = returnToken, topToken = topToken,
+                    assistantOverlay = if (assistantState == AssistantState.Idle) null else { { AssistantArea(assistantState, onDismiss = assistant::dismiss) } },
                 )
             }
             when (top) {
