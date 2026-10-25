@@ -5,6 +5,7 @@ import com.bittv.home.model.Prefs
 import com.bittv.home.model.Svc
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -66,5 +67,18 @@ class PrefsRepoTest {
         assertEquals("UK English Female", p.voice)
         assertEquals(emptyList<String>(), p.watchLater)
         s2.cancel()
+    }
+
+    @Test
+    fun concurrentTogglesBothCount() = runTest {
+        val scope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
+        val r = repo(File(tmp.root, "d.preferences_pb"), scope)
+        val a = async { r.toggleWatchLater("epidemic") }; val b = async { r.toggleWatchLater("epidemic") }
+        a.await(); b.await()
+        assertFalse("pressed twice: back to not saved", "epidemic" in r.prefs.first().watchLater)
+        val c = async { r.toggleSub(Svc.PARAMOUNT) }; val d = async { r.toggleSub(Svc.PARAMOUNT) }
+        c.await(); d.await()
+        assertFalse(Svc.PARAMOUNT in r.prefs.first().subs)
+        scope.cancel()
     }
 }

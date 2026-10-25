@@ -73,4 +73,33 @@ class AssistantControllerTest {
         c.startListening(); c.transcript("who was")
         assertEquals(AssistantState.Listening("who was"), c.state.value)
     }
+
+    @Test
+    fun askFeedsTheQuestionWordByWordThenAnswers() = runTest {
+        val c = controller(FakeSpeaker(1_000))
+        c.ask("who was leonardo"); runCurrent()
+        assertEquals(AssistantState.Listening(""), c.state.value)
+        advanceTimeBy(700 + 220 + 10); runCurrent()
+        assertEquals(AssistantState.Listening("who was"), c.state.value)
+        advanceTimeBy(3_000); runCurrent()
+        assertTrue(c.state.value is AssistantState.Showing)
+    }
+
+    @Test
+    fun dismissWhileListeningStopsTheAsk() = runTest {
+        val s = FakeSpeaker(1_000); val c = controller(s)
+        c.ask("who was leonardo"); runCurrent(); advanceTimeBy(800); runCurrent()
+        c.dismiss(); advanceTimeBy(60_000); runCurrent()
+        assertEquals(AssistantState.Idle, c.state.value)
+        assertTrue(s.spoken.isEmpty())   // no answer appears after it was closed
+    }
+
+    @Test
+    fun secondAskReplacesTheFirst() = runTest {
+        val s = FakeSpeaker(1_000); val c = controller(s)
+        c.ask("first question here"); runCurrent(); advanceTimeBy(800)
+        c.ask("second"); runCurrent(); advanceTimeBy(5_000); runCurrent()
+        assertEquals("second", (c.state.value as AssistantState.Showing).query)
+        assertEquals(1, s.spoken.size)
+    }
 }

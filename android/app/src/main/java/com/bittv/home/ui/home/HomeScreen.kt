@@ -111,6 +111,12 @@ fun HomeScreen(
     val heroRequester = remember { FocusRequester() }
     var lastContent by remember { mutableStateOf<FocusRequester?>(null) }   // where Right from the app bar (and Back) return
     val playRequester = remember { FocusRequester() }
+    val overlayRequester = remember { FocusRequester() }
+    val rowRequesters = remember { mutableMapOf<String, FocusRequester>() }
+    var lastRowKey by remember { mutableStateOf<String?>(null) }
+    fun tryFocus(r: FocusRequester?) = r != null && r.requestFocus()
+    // where focus goes back to: the last item, else its row (the item may have been removed), else the banner
+    fun returnFocus(): Boolean = tryFocus(lastContent) || tryFocus(lastRowKey?.let { rowRequesters[it] }) || tryFocus(heroRequester)
 
     LaunchedEffect(resumed, banner.size) {
         if (!resumed || banner.isEmpty()) return@LaunchedEffect
@@ -120,7 +126,7 @@ fun HomeScreen(
         while (resumed) { clock = now(); delay(60_000L - clock.second * 1000L) }
     }
     LaunchedEffect(Unit) { heroRequester.requestFocus() }
-    LaunchedEffect(returnToken) { if (returnToken > 0) (lastContent ?: heroRequester).requestFocus() }
+    LaunchedEffect(returnToken) { if (returnToken > 0) returnFocus() }
     LaunchedEffect(topToken) { if (topToken > 0) heroRequester.requestFocus() }
 
     // Vertical page: a LazyColumn whose bring-into-view rule implements the focus line. Lazy layouts take part in
@@ -128,16 +134,15 @@ fun HomeScreen(
     val listState = rememberLazyListState()
     val density = LocalDensity.current
     val pageSpec = remember(density, motion) { PageBringIntoView(density, motion) }
-    pageSpec.section = focusedSection
     pageSpec.firstRowKey = rows.firstOrNull()?.key
 
     val showAmbient = state.prefs.ambient
     Box(modifier.fillMaxSize()) {
-        AmbientBackground(if (showAmbient) ambient?.first else null, if (showAmbient) ambient?.second else null)
+        AmbientBackground({ if (showAmbient) ambient else null })
 
         AppBar(state.apps, state.installed, actions::openApp,
             Modifier.padding(start = 40.dp, top = 30.dp, bottom = 30.dp).width(97.dp).fillMaxHeightCompat(),
-            returnTo = { lastContent })
+            returnTo = { returnFocus() })
 
         CompositionLocalProvider(LocalBringIntoViewSpec provides pageSpec) {
             LazyColumn(
@@ -150,9 +155,9 @@ fun HomeScreen(
                 contentPadding = PaddingValues(top = 30.dp, bottom = 400.dp),
             ) {
                 item(key = "top", contentType = "top") {
-                    Row(Modifier.section("top") { focusedSection = it }.padding(start = RowStartPad, end = 40.dp).fillMaxWidth().height(36.dp),
+                    Row(Modifier.section("top") { focusedSection = it; pageSpec.section = it }.padding(start = RowStartPad, end = 40.dp).fillMaxWidth().height(36.dp),
                         verticalAlignment = Alignment.CenterVertically) {
-                        ShortcutButtons(listOf(
+                        ShortcutButtons(onFocused = { lastContent = it; lastRowKey = null }, items = listOf(
                             Shortcut("Search", Glyph.SEARCH, actions::openSearch),
                             Shortcut("Cast", Glyph.CAST, actions::cast),
                             Shortcut("Browser", Glyph.GLOBE) { },
@@ -164,13 +169,13 @@ fun HomeScreen(
                     }
                 }
                 item(key = "hero", contentType = "hero") {
-                    Row(Modifier.section("hero") { focusedSection = it }.padding(start = RowStartPad, top = 20.dp, bottom = 18.dp)) {
+                    Row(Modifier.section("hero") { focusedSection = it; pageSpec.section = it }.padding(start = RowStartPad, top = 20.dp, bottom = 18.dp)) {
                         Banner(banner, bannerIndex, state.prefs.subs, state.apps, BannerW, BannerH,
-                            onClick = actions::openTitle, onFocus = { t: Title -> ambient = Color(t.c1) to Color(t.c2); lastContent = heroRequester },
-                            modifier = Modifier.testTag("hero").focusRequester(heroRequester).focusProperties { right = playRequester })
+                            onClick = actions::openTitle, onFocus = { t: Title -> ambient = Color(t.c1) to Color(t.c2); lastContent = heroRequester; lastRowKey = null },
+                            modifier = Modifier.testTag("hero").focusRequester(heroRequester).focusProperties { right = if (assistantOverlay != null) overlayRequester else playRequester })
                         Spacer(Modifier.width(20.dp))
                         ActiveSection(state.nowPlaying, state.news.firstOrNull(), state.today, actions, playRequester,
-                            ActiveW, BannerH, overlay = assistantOverlay)
+                            ActiveW, BannerH, overlay = assistantOverlay, overlayFocus = overlayRequester)
                     }
                 }
                 val near = rows.indexOfFirst { it.key == focusedSection }
@@ -182,8 +187,9 @@ fun HomeScreen(
                         onOpen = actions::openTitle,
                         onFocusTitle = { t -> ambient = t?.let { Color(it.c1) to Color(it.c2) } ?: (Color(0xFF0B2A6B) to Color(0xFF2F7BFF)) },
                         onDevice = { },
-                        modifier = Modifier.section(row.key) { focusedSection = it }.padding(top = 8.dp),
-                        onTileFocused = { lastContent = it },
+                        modifier = Modifier.section(row.key) { focusedSection = it; pageSpec.section = it }.padding(top = 8.dp),
+                        onTileFocused = { lastContent = it; lastRowKey = row.key },
+                        rowRequester = rowRequesters.getOrPut(row.key) { FocusRequester() },
                     )
                 }
             }

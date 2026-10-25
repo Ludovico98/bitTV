@@ -85,6 +85,7 @@ fun HomeRowSection(
     row: HomeRow, subs: Set<Svc>, apps: List<AppEntry>, animateDevices: Boolean,
     onOpen: (Title) -> Unit, onFocusTitle: (Title?) -> Unit, onDevice: (String) -> Unit, modifier: Modifier = Modifier,
     onTileFocused: (FocusRequester) -> Unit = {},
+    rowRequester: FocusRequester? = null,
 ) {
     val density = LocalDensity.current
     val spec = remember(density) { with(density) { RowBringIntoView(RowStartPad.toPx(), RowPeek.toPx()) } }
@@ -114,6 +115,7 @@ fun HomeRowSection(
         CompositionLocalProvider(LocalBringIntoViewSpec provides spec) {
             LazyRow(
                 Modifier
+                    .then(if (rowRequester != null) Modifier.focusRequester(rowRequester) else Modifier)
                     .fillMaxWidth()
                     .drawBehind { // the glass strip behind the tiles, open on the right like the prototype
                         drawRoundRect(Glass, Offset(0f, 2.dp.toPx()), Size(size.width + 40.dp.toPx(), size.height - 24.dp.toPx()), CornerRadius(15.dp.toPx()))

@@ -26,8 +26,10 @@ private val DefaultB = Color(0xCC281E5A)
  * drawing is recorded once, so a colour change costs a compositor fade, not a full-screen repaint every frame.
  */
 @Composable
-fun AmbientBackground(c1: Color?, c2: Color?, modifier: Modifier = Modifier) {
+fun AmbientBackground(colors: () -> Pair<Color, Color>?, modifier: Modifier = Modifier) {
     val motion = LocalMotion.current
+    // read here, not by the caller: a focus change recomposes only the background, not the whole screen
+    val c1 = colors()?.first; val c2 = colors()?.second
     var slots by remember { mutableStateOf(listOf<Pair<Color, Color>?>(DefaultA to DefaultB, null)) }
     var front by remember { mutableIntStateOf(0) }
     LaunchedEffect(c1, c2) {

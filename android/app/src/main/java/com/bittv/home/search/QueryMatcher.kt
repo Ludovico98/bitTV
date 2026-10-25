@@ -23,10 +23,12 @@ object QueryMatcher {
     private fun squash(s: String) = s.lowercase().filter { it.isLetterOrDigit() }
 
     private fun matches(t: Title, tok: String, subs: Set<Svc>): Boolean {
-        val stem = tok.removeSuffix("s")
+        val stem = squash(tok.removeSuffix("s"))
+        val word = squash(tok)
+        // a token that is only punctuation, or just "s", must not match every genre and service by an empty prefix
         return t.name.lowercase().contains(tok) ||
-            t.genres.any { squash(it).startsWith(squash(stem)) } ||
-            t.services.any { it in subs && squash(it.label).startsWith(squash(tok)) } ||
+            (stem.isNotEmpty() && t.genres.any { squash(it).startsWith(stem) }) ||
+            (word.isNotEmpty() && t.services.any { it in subs && squash(it.label).startsWith(word) }) ||
             (tok == "series" && t.type == TitleType.SERIES) ||
             (MOVIE.matches(tok) && t.type == TitleType.MOVIE) ||
             (APPLE.matches(tok) && Svc.APPLETV in t.services)

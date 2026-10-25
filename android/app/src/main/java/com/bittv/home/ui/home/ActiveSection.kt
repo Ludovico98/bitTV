@@ -61,15 +61,24 @@ import com.bittv.home.ui.theme.Type
 fun ActiveSection(
     nowPlaying: NowPlaying?, news: NewsItem?, today: List<TodayItem>, actions: HomeActions, playRequester: FocusRequester,
     width: Dp, height: Dp, modifier: Modifier = Modifier, overlay: (@Composable () -> Unit)? = null,
+    overlayFocus: FocusRequester = remember { FocusRequester() },
 ) {
     var sectionFocused by remember { mutableStateOf(false) }
-    val overlayFocus = remember { FocusRequester() }
-    // an answer replaces the Spotify/news controls: if focus was on them, it moves to the answer (never left on hidden controls)
-    LaunchedEffect(overlay != null) { if (overlay != null && sectionFocused) overlayFocus.requestFocus() }
+    var overlayHadFocus by remember { mutableStateOf(false) }
+    // written during composition on purpose: when the answer is removed, the focus callback fired by its removal
+    // must already see "no overlay", so it doesn't erase the fact that the answer had focus
+    val shown = remember { BooleanArray(1) }
+    shown[0] = overlay != null
+    LaunchedEffect(overlay != null) {
+        // an answer replaces the Spotify/news controls: if focus was on them it moves to the answer...
+        if (overlay != null && sectionFocused) overlayFocus.requestFocus()
+        // ...and back to the controls when the answer goes away (OK, Back or its 30 s), never left on nothing
+        if (overlay == null && overlayHadFocus) { overlayHadFocus = false; playRequester.requestFocus() }
+    }
     Box(
         modifier.testTag("active").size(width, height).clip(RoundedCornerShape(17.dp))
             .background(Color(0x12FFFFFF)).border(1.dp, GlassLine, RoundedCornerShape(17.dp))
-            .onFocusChanged { if (overlay == null) sectionFocused = it.hasFocus },
+            .onFocusChanged { if (shown[0]) overlayHadFocus = it.hasFocus else sectionFocused = it.hasFocus },
     ) {
         if (overlay != null) { Box(Modifier.focusRequester(overlayFocus)) { overlay() }; return@Box }
         Column(Modifier.fillMaxSize().padding(horizontal = 13.dp, vertical = 11.dp)) {

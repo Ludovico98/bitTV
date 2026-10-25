@@ -26,6 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.focusGroup
@@ -52,23 +54,25 @@ data class Shortcut(val label: String, val glyph: Glyph, val onClick: () -> Unit
 /** Round shortcut buttons; the name appears under the highlighted one. */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
-fun ShortcutButtons(items: List<Shortcut>, modifier: Modifier = Modifier) {
+fun ShortcutButtons(items: List<Shortcut>, modifier: Modifier = Modifier, onFocused: (FocusRequester) -> Unit = {}) {
     // Right at the last button stays put: left/right never changes row
     Row(modifier.focusProperties { onExit = { if (requestedFocusDirection == FocusDirection.Right) cancelFocusChange() } }.focusGroup(),
         horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        items.forEach { RoundButton(it) }
+        items.forEach { RoundButton(it, onFocused) }
     }
 }
 
 @Composable
-private fun RoundButton(s: Shortcut) {
+private fun RoundButton(s: Shortcut, onFocused: (FocusRequester) -> Unit) {
     var focused by remember { mutableStateOf(false) }
+    val requester = remember { FocusRequester() }
     val scale by animateFloatAsState(if (focused) 1.1f else 1f, LocalMotion.current.tween(160), label = "sc")
     Box(Modifier.zIndex(if (focused) 1f else 0f)) {
         Box(
             Modifier
                 .testTag("sc:${s.label}")
-                .onFocusChanged { focused = it.isFocused }
+                .focusRequester(requester)
+                .onFocusChanged { focused = it.isFocused; if (it.isFocused) onFocused(requester) }
                 .clickable(remember { MutableInteractionSource() }, null, onClick = s.onClick)
                 .graphicsLayer { scaleX = scale; scaleY = scale }
                 .then(if (focused) Modifier.shadow(12.dp, CircleShape, ambientColor = Color.White, spotColor = Color.White) else Modifier)

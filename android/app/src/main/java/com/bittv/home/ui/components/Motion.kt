@@ -11,7 +11,8 @@ import androidx.compose.runtime.staticCompositionLocalOf
  * Motion tokens honouring Settings → Animations. Off: every change is instant ([snap]) and nothing loops.
  * Page movement is a critically damped spring, so a new key press redirects it without restarting.
  */
-class Motion(val enabled: Boolean) {
+// a data class so an equal value provided again does not invalidate everything that reads LocalMotion
+data class Motion(val enabled: Boolean) {
     fun <T> tween(ms: Int): FiniteAnimationSpec<T> = if (enabled) tween(ms, easing = FastOutSlowInEasing) else snap()
     fun <T> pageSpring(): FiniteAnimationSpec<T> = if (enabled) spring(dampingRatio = 1f, stiffness = 340f) else snap()
     val loops: Boolean get() = enabled

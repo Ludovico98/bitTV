@@ -1,7 +1,7 @@
 package com.bittv.home.ui.root
 
 import androidx.activity.compose.BackHandler
-import kotlinx.coroutines.delay
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.Key
 import com.bittv.home.ui.assistant.AssistantArea
@@ -71,7 +71,7 @@ sealed interface Screen {
 /** The screen stack. Home stays composed underneath so it keeps its place; Back pops, Back on Home goes to the top. */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false) {
+fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0) {
     val prefs by graph.prefs.prefs.collectAsStateWithLifecycle(initialValue = Prefs())
     val scope = rememberCoroutineScope()
     val apps = graph.catalog.apps
@@ -84,24 +84,20 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false) {
     val demo = remember { DemoAnswers() }
     val assistant = remember { AssistantController(scope, EstimatedSpeaker, demo) }
     val assistantState by assistant.state.collectAsStateWithLifecycle()
+    // kept here, not in Search, so the query is still there when Back returns from a result
+    var searchQuery by rememberSaveable { mutableStateOf("") }
     fun askDemo() {
         while (stack.size > 1) stack.removeAt(stack.lastIndex)
-        val q = demo.nextQuestion()
-        assistant.startListening()
-        scope.launch {   // the question appears word by word, as if spoken
-            val words = q.split(" ")
-            delay(700)
-            words.indices.forEach { i -> assistant.transcript(words.take(i + 1).joinToString(" ")); delay(220) }
-            delay(500)
-            assistant.submit(q)
-        }
+        assistant.ask(demo.nextQuestion())
     }
 
-    fun push(s: Screen) { stack.add(s) }
+    // opening a page puts any answer away: it belongs to Home and Back must close the page first
+    fun push(s: Screen) { assistant.dismiss(); stack.add(s) }
     fun pop() { if (stack.size > 1) { stack.removeAt(stack.lastIndex); if (stack.size == 1) returnToken++ } }
     BackHandler(enabled = stack.size > 1) { pop() }
     BackHandler(enabled = stack.size == 1) { topToken++ }
-    BackHandler(enabled = assistantState != AssistantState.Idle) { assistant.dismiss() }   // an answer closes before anything else
+    // on Home an answer closes before Back scrolls to the top (registered later, so it wins)
+    BackHandler(enabled = stack.size == 1 && assistantState != AssistantState.Idle) { assistant.dismiss() }
     BackHandler(enabled = booting) { booting = false }
 
     fun openApp(a: AppEntry) =
@@ -114,23 +110,36 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false) {
         else push(Screen.Opening(app, svc.label, "Playing “${t.name}”" + (p?.let { " · ${it.label}" } ?: "")))
     }
 
+    // the Home button while BitTV is already in front: back to the top of Home, like a fresh start
+    LaunchedEffect(homeSignal) {
+        if (homeSignal > 0) { stack.removeRange(1, stack.size); assistant.dismiss(); booting = false; topToken++ }
+    }
+
     val actions = remember {
         object : HomeActions {
             override fun openTitle(t: Title) = push(Screen.Details(t))
             override fun openApp(a: AppEntry) = openApp(a)
-            override fun openSearch() = push(Screen.Search)
+            override fun openSearch() { searchQuery = ""; push(Screen.Search) }
             override fun openSettings() = push(Screen.Settings)
             override fun toggleWatchLater(t: Title) { scope.launch { graph.prefs.toggleWatchLater(t.id) } }
         }
     }
 
-    CompositionLocalProvider(LocalMotion provides Motion(prefs.animations)) {
+    val motion = remember(prefs.animations) { Motion(prefs.animations) }
+    val dismiss = remember { { assistant.dismiss() } }
+    val overlay: (@Composable () -> Unit)? = remember(assistantState) {
+        if (assistantState == AssistantState.Idle) null else { { AssistantArea(assistantState, onDismiss = dismiss) } }
+    }
+    CompositionLocalProvider(LocalMotion provides motion) {
         // while the boot animation plays, any key skips it
         Box(Modifier.fillMaxSize().onPreviewKeyEvent { e ->
             when {
                 booting && e.type == KeyEventType.KeyDown -> { booting = false; true }
                 // the remote's mic/search key (M on a keyboard) asks the Assistant; plan 2 listens for real
-                e.type == KeyEventType.KeyDown && (e.key == Key.M || e.key == Key.Search) && stack.last() != Screen.Search -> { askDemo(); true }
+                // a held key repeats: only the first press asks, the repeats are swallowed
+                e.type == KeyEventType.KeyDown && (e.key == Key.M || e.key == Key.Search) && stack.last() != Screen.Search -> {
+                    if (e.nativeKeyEvent.repeatCount == 0) askDemo(); true
+                }
                 else -> false
             }
         }) {
@@ -146,12 +155,13 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false) {
                         weather = null,
                     ),
                     actions, active = top == Screen.Home, returnToken = returnToken, topToken = topToken,
-                    assistantOverlay = if (assistantState == AssistantState.Idle) null else { { AssistantArea(assistantState, onDismiss = assistant::dismiss) } },
+                    assistantOverlay = overlay,
                 )
             }
             when (top) {
                 Screen.Home -> {}
-                Screen.Search -> SearchScreen(graph.catalog.titles, prefs.subs, apps, onOpen = { push(Screen.Details(it)) }, onBack = ::pop)
+                Screen.Search -> SearchScreen(graph.catalog.titles, prefs.subs, apps, onOpen = { push(Screen.Details(it)) }, onBack = ::pop,
+                    query = searchQuery, onQueryChange = { searchQuery = it })
                 is Screen.Details -> DetailsScreen(top.title, prefs, graph.catalog.progress.firstOrNull { it.titleId == top.title.id }, apps,
                     onPlay = { play(top.title, it) }, onToggleWatchLater = { actions.toggleWatchLater(top.title) }, onBack = ::pop)
                 is Screen.NotInstalled -> NotInstalledScreen(top.app, onInstall = { installed = installed + top.app.id; pop() }, onBack = ::pop)

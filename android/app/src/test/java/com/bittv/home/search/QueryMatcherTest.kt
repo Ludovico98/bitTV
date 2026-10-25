@@ -66,4 +66,13 @@ class QueryMatcherTest {
         assertTrue(r.similar.none { it in r.results })
         assertTrue(r.similar.all { t -> t.genres.any { it in genres } })
     }
+
+    @Test
+    fun singleLetterDoesNotMatchEveryGenre() {
+        // "s" stems to "" — an empty prefix must not match every genre and service
+        val owned = DemoCatalog.titles.count { t -> t.services.any { it in subs } }
+        val r = QueryMatcher.search("s", DemoCatalog.titles, subs).results
+        assertTrue("${r.size} of $owned", r.size < owned)
+        assertTrue(QueryMatcher.search("-", DemoCatalog.titles, subs).results.isEmpty())
+    }
 }

@@ -40,7 +40,7 @@ import com.bittv.home.ui.components.FocusTile
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun AppBar(apps: List<AppEntry>, installed: Set<String>, onOpen: (AppEntry) -> Unit, modifier: Modifier = Modifier,
-           returnTo: () -> FocusRequester? = { null }) {
+           returnTo: () -> Boolean = { false }) {
     Box(
         modifier
             .testTag("rail")
@@ -51,7 +51,7 @@ fun AppBar(apps: List<AppEntry>, installed: Set<String>, onOpen: (AppEntry) -> U
                     when (requestedFocusDirection) {
                         FocusDirection.Up, FocusDirection.Down -> cancelFocusChange()
                         // Right returns exactly where you were (lazy rows can't be restored by Compose's restorer)
-                        FocusDirection.Right -> returnTo()?.let { cancelFocusChange(); it.requestFocus() }
+                        FocusDirection.Right -> if (returnTo()) cancelFocusChange()
                         else -> {}
                     }
                 }

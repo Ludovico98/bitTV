@@ -70,8 +70,12 @@ private val DEMO_VOICE = listOf("crime series", "the long tide", "comedy movies"
 fun SearchScreen(
     pool: List<Title>, subs: Set<Svc>, apps: List<AppEntry>, onOpen: (Title) -> Unit, onBack: () -> Unit,
     listen: suspend () -> String? = defaultDemoListener(),
+    query: String? = null,
+    onQueryChange: ((String) -> Unit)? = null,
 ) {
-    var query by remember { mutableStateOf("") }
+    var local by remember { mutableStateOf("") }
+    val query = query ?: local
+    fun setQuery(v: String) { if (onQueryChange != null) onQueryChange(v) else local = v }
     var listening by remember { mutableStateOf(false) }
     val result = remember(query, subs) { QueryMatcher.search(query, pool, subs) }
     val qFocus = remember { FocusRequester() }
@@ -79,10 +83,10 @@ fun SearchScreen(
     LaunchedEffect(listening) {
         if (!listening) return@LaunchedEffect
         val said = listen()
-        if (said != null) query = said.lowercase()
+        if (said != null) setQuery(said.lowercase())
         listening = false
     }
-    fun type(c: Char) { query = when (c) { '⌫' -> query.dropLast(1); else -> if (query.length < 40) query + c else query } }
+    fun type(c: Char) = setQuery(when (c) { '⌫' -> query.dropLast(1); else -> if (query.length < 40) query + c else query })
 
     Box(Modifier.fillMaxSize().background(Bg)) {
         // search bar with the Speak button
@@ -119,7 +123,7 @@ fun SearchScreen(
             }
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Key("space", "key:space", 29.dp * 8 + 28.dp) { type(' ') }
-                Key("clear", "key:clear", 29.dp * 2 + 4.dp) { query = "" }
+                Key("clear", "key:clear", 29.dp * 2 + 4.dp) { setQuery("") }
             }
             Spacer(Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
