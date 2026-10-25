@@ -46,4 +46,5 @@ adb -s emulator-5554 shell pm disable-user --user 0 com.google.android.apps.tv.l
 2. `dumpsys gfxinfo com.bittv.home` while holding Down and Right on Home: P90 ≤ 16 ms.
 3. PSS after an evening of use (a launcher runs for days).
 4. If frames miss on the MediaTek GPU, the first candidates are the demo posters' layered gradients (real artwork
-   in plan 2 is a single bitmap per tile) and the ambient background layers.
+   in plan 2 is a single bitmap per tile), the ambient background layers, and each row's offscreen layer for the
+   fade next to the app bar (`fadeIntoGap` in `Rows.kt`, 2–3 rows on screen); the fade can become a plain clip.

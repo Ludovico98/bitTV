@@ -37,6 +37,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.border
+import com.bittv.home.ui.theme.GlassLine
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusDirection
@@ -210,7 +213,8 @@ fun HomeScreen(
         val scrolledAway by remember { derivedStateOf { listState.firstVisibleItemIndex >= 2 } }
         Text(clock.format(TIME), style = Type.Clock.copy(fontSize = 17.sp),
             modifier = Modifier.align(Alignment.TopEnd).padding(top = 30.dp, end = 40.dp).alpha(if (scrolledAway) 1f else 0f)
-                .background(Color(0x99080A10), RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 4.dp))
+                .shadow(10.dp, RoundedCornerShape(8.dp)).background(Color(0xF20B0E16), RoundedCornerShape(8.dp)).border(1.dp, GlassLine, RoundedCornerShape(8.dp))
+                .padding(horizontal = 10.dp, vertical = 4.dp))
     }
 }
 

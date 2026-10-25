@@ -77,7 +77,7 @@ fun DetailsScreen(
             Spacer(Modifier.height(12.dp))
             Text(title.blurb, style = Type.Body.copy(fontSize = 15.sp, color = Color(0xE0FFFFFF), lineHeight = 21.sp))
             Spacer(Modifier.height(20.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 PillButton("${if (progress != null) "Resume" else "Play"} on ${svc.label}", { onPlay(svc) },
                     Modifier.focusRequester(playFocus).testTag("play"),
                     leading = { app?.let { a -> AppIcon(a, 20.dp, 20.dp, radius = 5.dp) } })
@@ -88,7 +88,7 @@ fun DetailsScreen(
             Spacer(Modifier.height(24.dp))
             Text("AVAILABLE ON", style = Type.Kicker)
             Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 title.services.forEach { s ->
                     val on = s in prefs.subs
                     PillButton("${s.label} · ${if (!on) "Not subscribed" else if (s.free) "Free" else "Subscribed"}", { onPlay(s) }, height = 30.dp,

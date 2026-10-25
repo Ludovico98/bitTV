@@ -37,7 +37,7 @@ fun NotInstalledScreen(app: AppEntry, onInstall: () -> Unit, onBack: () -> Unit)
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text("${app.label} isn’t installed", style = Type.Title.copy(fontSize = 26.sp))
             Spacer(Modifier.height(24.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 PillButton("Install ${app.label}", onInstall, Modifier.focusRequester(focus))
                 PillButton("Back", onBack, leading = { c -> GlyphIcon(Glyph.BACK, c, Modifier.size(15.dp)) })
             }

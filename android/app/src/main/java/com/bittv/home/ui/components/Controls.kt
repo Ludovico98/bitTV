@@ -37,12 +37,22 @@ import com.bittv.home.ui.theme.Type
 
 private val Dark = Color(0xFF0B0F18)
 
-/** Focus look shared by buttons: white fill, dark content, 1.1 scale and a soft glow. */
+/** The most a focused control may grow on each side, so it never reaches the control next to it. */
+private val MaxGrow = 5.dp
+
+/**
+ * Focus look shared by buttons: white fill, dark content, a lift and a soft glow. Small controls scale by
+ * [scaleTo]; wide ones grow by at most [MaxGrow] per side (tvOS: wide controls lift, they don't balloon).
+ */
 @Composable
 fun rememberFocusLook(scaleTo: Float = 1.1f): Pair<Boolean, Modifier> {
     var focused by remember { mutableStateOf(false) }
-    val s by animateFloatAsState(if (focused) scaleTo else 1f, LocalMotion.current.tween(160), label = "btn")
-    return focused to Modifier.onFocusChanged { focused = it.isFocused }.zIndex(if (focused) 1f else 0f).graphicsLayer { scaleX = s; scaleY = s }
+    val p by animateFloatAsState(if (focused) 1f else 0f, LocalMotion.current.tween(160), label = "btn")
+    return focused to Modifier.onFocusChanged { focused = it.isFocused }.zIndex(if (focused) 1f else 0f).graphicsLayer {
+        val grow = if (size.width > 0f) minOf(scaleTo - 1f, 2 * MaxGrow.toPx() / size.width) else scaleTo - 1f
+        val s = 1f + grow * p
+        scaleX = s; scaleY = s
+    }
 }
 
 @Composable
