@@ -63,6 +63,19 @@ class CatalogRepoTest {
         assertTrue(cw.isNotEmpty())
     }
 
+    @Test fun aTitleSavedFromSearchStaysInTheCatalogue() = runTest {
+        val file = tmp.newFile(); val extras = java.io.File(tmp.root, "extras.json")
+        val st = real.copy(id = "tv66732", name = "Stranger Things")
+        val repo = CatalogRepo(tmdb(listOf(real)), file, extrasFile = extras)
+        repo.refresh(); repo.keep(st)
+        assertTrue(repo.state.value.titles.any { it.id == "tv66732" })
+        // after a restart, and after the next catalogue refresh, it is still there
+        val again = CatalogRepo(tmdb(listOf(real)), file, extrasFile = extras, now = { file.lastModified() + 13 * 3_600_000L })
+        again.refresh()
+        assertTrue(again.state.value.titles.any { it.id == "tv66732" })
+        assertEquals(1, again.state.value.titles.count { it.id == "tv66732" })
+    }
+
     @Test fun tmdbCatalogIsACatalogSource() {
         val s: CatalogSource = TmdbCatalog("k") { _, _ -> null }
         assertTrue(s is TmdbCatalog)

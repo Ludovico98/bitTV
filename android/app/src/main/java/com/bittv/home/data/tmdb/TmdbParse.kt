@@ -53,22 +53,24 @@ object TmdbParse {
     /** One /discover page → titles on [svc]. Low vote counts are damped so a 10/10 from three people can't top the banner. */
     fun discover(json: String, type: TitleType, svc: Svc, genres: Map<Int, String>): List<Title> {
         val arr = JSONObject(json).optJSONArray("results") ?: return emptyList()
-        return (0 until arr.length()).map { i ->
-            val o = arr.getJSONObject(i)
-            val id = o.getInt("id")
-            val name = listOf("name", "title", "original_name", "original_title").map { o.optString(it) }.firstOrNull { it.isNotBlank() } ?: "—"
-            val date = o.optString("first_air_date").ifBlank { o.optString("release_date") }
-            val ids = o.optJSONArray("genre_ids") ?: JSONArray()
-            val votes = o.optDouble("vote_average", 0.0); val count = o.optInt("vote_count", 0)
-            val (c1, c2) = fallbackColours(id)
-            Title(
-                id = (if (type == TitleType.SERIES) "tv" else "mv") + id, name = name, type = type,
-                genres = (0 until ids.length()).mapNotNull { genres[ids.getInt(it)] }, services = listOf(svc),
-                c1 = c1, c2 = c2, year = date.take(4).toIntOrNull() ?: 0, score = votes * min(1.0, count / 200.0),
-                font = TitleFont.entries[abs(id) % TitleFont.entries.size], blurb = o.optString("overview"),
-                art = if (o.isNull("backdrop_path")) null else o.optString("backdrop_path").ifBlank { null },
-            )
-        }
+        return (0 until arr.length()).map { i -> item(arr.getJSONObject(i), type, listOf(svc), genres) }
+    }
+
+    /** One TMDB movie or series object (discover or search) → a Title on [services]. */
+    fun item(o: JSONObject, type: TitleType, services: List<Svc>, genres: Map<Int, String>): Title {
+        val id = o.getInt("id")
+        val name = listOf("name", "title", "original_name", "original_title").map { o.optString(it) }.firstOrNull { it.isNotBlank() } ?: "—"
+        val date = o.optString("first_air_date").ifBlank { o.optString("release_date") }
+        val ids = o.optJSONArray("genre_ids") ?: JSONArray()
+        val votes = o.optDouble("vote_average", 0.0); val count = o.optInt("vote_count", 0)
+        val (c1, c2) = fallbackColours(id)
+        return Title(
+            id = (if (type == TitleType.SERIES) "tv" else "mv") + id, name = name, type = type,
+            genres = (0 until ids.length()).mapNotNull { genres[ids.getInt(it)] }, services = services,
+            c1 = c1, c2 = c2, year = date.take(4).toIntOrNull() ?: 0, score = votes * min(1.0, count / 200.0),
+            font = TitleFont.entries[abs(id) % TitleFont.entries.size], blurb = o.optString("overview"),
+            art = if (o.isNull("backdrop_path")) null else o.optString("backdrop_path").ifBlank { null },
+        )
     }
 
     /** One list per (service, type) → one title each, with every service it is on, in first-seen order. */

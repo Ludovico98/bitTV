@@ -43,6 +43,7 @@ import androidx.tv.material3.Text
 import com.bittv.home.model.AppEntry
 import com.bittv.home.model.Svc
 import com.bittv.home.model.Title
+import com.bittv.home.data.tmdb.TmdbSearch
 import com.bittv.home.model.mainService
 import com.bittv.home.search.QueryMatcher
 import com.bittv.home.ui.components.AppIcon
@@ -72,12 +73,27 @@ fun SearchScreen(
     listen: suspend () -> String? = defaultDemoListener(),
     query: String? = null,
     onQueryChange: ((String) -> Unit)? = null,
+    /** Online search (TMDB) for titles beyond the downloaded catalogue; null on the demo. */
+    online: (suspend (String) -> List<Title>)? = null,
 ) {
     var local by remember { mutableStateOf("") }
     val query = query ?: local
     fun setQuery(v: String) { if (onQueryChange != null) onQueryChange(v) else local = v }
     var listening by remember { mutableStateOf(false) }
-    val result = remember(query, subs) { QueryMatcher.search(query, pool, subs) }
+    val localResult = remember(query, subs, pool) { QueryMatcher.search(query, pool, subs) }
+    // online results join a moment after typing stops (one request per pause, not per letter)
+    var onlineFound by remember { mutableStateOf<Pair<String, List<Title>>?>(null) }
+    var searching by remember { mutableStateOf(false) }
+    LaunchedEffect(query) {
+        if (online == null || query.isBlank()) { onlineFound = null; searching = false; return@LaunchedEffect }
+        searching = true
+        kotlinx.coroutines.delay(350)
+        onlineFound = query to online(query)
+        searching = false
+    }
+    val result = remember(localResult, onlineFound, subs) {
+        onlineFound?.takeIf { it.first == query }?.let { TmdbSearch.merge(localResult, it.second, subs) } ?: localResult
+    }
     val qFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) { qFocus.requestFocus() }
     LaunchedEffect(listening) {
@@ -146,8 +162,7 @@ fun SearchScreen(
             }
             if (result.results.isEmpty()) {
                 item(span = { GridItemSpan(4) }) {
-                    Text("Nothing on your apps matches “${query.trim()}”. Apps that are switched off can be turned on in Settings.",
-                        style = Type.Body.copy(color = Ink2))
+                    Text(if (searching) "Searching…" else "Nothing on your apps matches “${query.trim()}”.", style = Type.Body.copy(color = Ink2))
                 }
             }
             itemsIndexed(result.results, key = { _, t -> "r:" + t.id }) { i, t -> ResultTile(t, subs, apps, "result:$i", onOpen) }

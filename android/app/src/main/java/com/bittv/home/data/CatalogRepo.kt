@@ -21,11 +21,15 @@ class CatalogRepo(
     private val source: CatalogSource?,
     private val cacheFile: File,
     private val now: () -> Long = System::currentTimeMillis,
+    /** Titles kept from Search (e.g. saved to Watch Later) that the popular catalogue doesn't include. */
+    private val extrasFile: File? = null,
 ) {
     enum class Source { DEMO, TMDB }
     data class State(val titles: List<Title>, val progress: List<Progress>, val source: Source)
 
-    private fun tmdbState(titles: List<Title>) = State(titles, TmdbParse.demoProgress(titles), Source.TMDB)
+    private var extras: List<Title> = extrasFile?.takeIf { it.length() > 0 }?.let { runCatching { TmdbParse.fromCache(it.readText()) }.getOrNull() }.orEmpty()
+    private fun tmdbState(titles: List<Title>) =
+        State(titles + extras.filter { e -> titles.none { it.id == e.id } }, TmdbParse.demoProgress(titles), Source.TMDB)
     private val demo = State(DemoCatalog.titles, DemoCatalog.progress, Source.DEMO)
 
     private val _state = MutableStateFlow(
@@ -41,6 +45,15 @@ class CatalogRepo(
         val titles = src.load() ?: return
         _state.value = tmdbState(titles)
         withContext(Dispatchers.IO) { cacheFile.writeText(TmdbParse.toCache(titles)) }
+    }
+
+    /** Keeps a title found by Search (saved to Watch Later, say) so Home can show it after restarts and refreshes. */
+    suspend fun keep(t: Title) {
+        val st = _state.value
+        if (st.source != Source.TMDB || st.titles.any { it.id == t.id }) return
+        extras = extras + t
+        _state.value = st.copy(titles = st.titles + t)
+        extrasFile?.let { f -> withContext(Dispatchers.IO) { f.writeText(TmdbParse.toCache(extras)) } }
     }
 
     companion object { const val MAX_AGE_MS = 12 * 3_600_000L }

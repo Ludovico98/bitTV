@@ -214,7 +214,8 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
             override fun openApp(a: AppEntry) = openApp(a)
             override fun openSearch() { searchQuery = ""; push(Screen.Search) }
             override fun openSettings() = push(Screen.Settings)
-            override fun toggleWatchLater(t: Title) { scope.launch { graph.prefs.toggleWatchLater(t.id) } }
+            // a title found by online search is kept so Watch Later can still show it after restarts
+            override fun toggleWatchLater(t: Title) { scope.launch { graph.catalog.keep(t); graph.prefs.toggleWatchLater(t.id) } }
             override fun reorderApps(ids: List<String>) { scope.launch { graph.prefs.setAppOrder(ids) } }
             override fun openInput(inputId: String) {
                 // straight into TCL's TV app on that input: no "open with TV / Live Channels" chooser
@@ -272,6 +273,7 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
                 Screen.Search -> if (demoCatalog) SearchScreen(catalog.titles, effective.subs, apps, onOpen = { push(Screen.Details(it)) }, onBack = ::pop,
                     query = searchQuery, onQueryChange = { searchQuery = it })
                 else SearchScreen(catalog.titles, effective.subs, apps, onOpen = { push(Screen.Details(it)) }, onBack = ::pop, listen = listen,
+                    online = graph.search?.let { s -> { q: String -> s.search(q) } },
                     query = searchQuery, onQueryChange = { searchQuery = it })
                 is Screen.Details -> DetailsScreen(top.title, effective, catalog.progress.firstOrNull { it.titleId == top.title.id }, apps,
                     onPlay = { play(top.title, it) }, onToggleWatchLater = { actions.toggleWatchLater(top.title) }, onBack = ::pop)
