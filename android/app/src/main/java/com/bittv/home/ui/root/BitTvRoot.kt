@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.bittv.home.AppGraph
+import kotlinx.coroutines.async
 import com.bittv.home.platform.TtsSpeaker
 import androidx.compose.runtime.rememberUpdatedState
 import android.Manifest
@@ -95,7 +96,8 @@ sealed interface Screen {
 /** The screen stack. Home stays composed underneath so it keeps its place; Back pops, Back on Home goes to the top. */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, demoCatalog: Boolean = false, askSignal: Int = 0) {
+fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, demoCatalog: Boolean = false, askSignal: Int = 0,
+              wakeSignal: Int = 0) {
     val prefs by graph.prefs.prefs.collectAsStateWithLifecycle(initialValue = Prefs())
     val scope = rememberCoroutineScope()
     // the app bar in his order (hold OK on an app to move it)
@@ -178,6 +180,8 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
         assistant.listen { onPartial -> graph.speech.listen(onPartial) }
     }
     LaunchedEffect(askSignal) { if (askSignal > 0) askDemo() }
+    // the TV woke from standby onto BitTV: greet it with the boot animation, from the top of Home
+    LaunchedEffect(wakeSignal) { if (wakeSignal > 0) { while (stack.size > 1) stack.removeAt(stack.lastIndex); assistant.dismiss(); booting = true } }
     // the TV's English voices for the Settings picker
     var voices by remember { mutableStateOf<List<String>>(emptyList()) }
     LaunchedEffect(tts) { tts?.let { voices = it.voices() } }
@@ -195,10 +199,27 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
         if (demoCatalog) { if (a.id in installed) push(Screen.Opening(a, a.label, "In the real BitTV this hands straight over to ${a.label}.")) else push(Screen.NotInstalled(a)); return }
         if (!graph.appsRepo.launch(a)) { installed = graph.appsRepo.installed(apps); push(Screen.NotInstalled(a)) }
     }
+    // each service's own page for a title (netflix.com/title/…), fetched when its page opens so Play is instant
+    val watchLinks = remember { mutableMapOf<String, kotlinx.coroutines.Deferred<String?>>() }
+    fun linkFor(t: Title, svc: Svc): kotlinx.coroutines.Deferred<String?> = watchLinks.getOrPut("${t.id}:$svc") {
+        scope.async {
+            com.bittv.home.platform.WatchLinks.pageUrl(t.id, svc)?.let { page ->
+                com.bittv.home.net.httpGet(page)?.let { com.bittv.home.platform.WatchLinks.parse(it)[svc] }
+            }
+        }
+    }
     fun play(t: Title, svc: Svc) {
         val app = apps.firstOrNull { it.svc == svc }
         val p = catalog.progress.firstOrNull { it.titleId == t.id }
-        if (!demoCatalog && app != null) { openApp(app); return }   // v1 opens the app; title deep links come per app
+        if (!demoCatalog && app != null) {
+            if (app.id !in installed) { push(Screen.NotInstalled(app)); return }
+            // the title's page in the app; else the app's search for it; else the app
+            scope.launch {
+                val url = kotlinx.coroutines.withTimeoutOrNull(3_000) { linkFor(t, svc).await() }
+                if (!graph.appsRepo.openTitle(app, url, t.name)) push(Screen.NotInstalled(app))
+            }
+            return
+        }
         if (app != null && app.id !in installed) push(Screen.NotInstalled(app))
         else push(Screen.Opening(app, svc.label, "Playing “${t.name}”" + (p?.let { " · ${it.label}" } ?: "")))
     }
@@ -275,8 +296,9 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
                 else SearchScreen(catalog.titles, effective.subs, apps, onOpen = { push(Screen.Details(it)) }, onBack = ::pop, listen = listen,
                     online = graph.search?.let { s -> { q: String -> s.search(q) } },
                     query = searchQuery, onQueryChange = { searchQuery = it })
-                is Screen.Details -> DetailsScreen(top.title, effective, catalog.progress.firstOrNull { it.titleId == top.title.id }, apps,
-                    onPlay = { play(top.title, it) }, onToggleWatchLater = { actions.toggleWatchLater(top.title) }, onBack = ::pop)
+                is Screen.Details -> { if (!demoCatalog) LaunchedEffect(top.title.id) { top.title.services.forEach { linkFor(top.title, it) } }
+                DetailsScreen(top.title, effective, catalog.progress.firstOrNull { it.titleId == top.title.id }, apps,
+                    onPlay = { play(top.title, it) }, onToggleWatchLater = { actions.toggleWatchLater(top.title) }, onBack = ::pop) }
                 is Screen.NotInstalled -> NotInstalledScreen(top.app, onInstall = {
                     if (demoCatalog) installed = installed + top.app.id else graph.appsRepo.openStore(top.app)
                     pop()

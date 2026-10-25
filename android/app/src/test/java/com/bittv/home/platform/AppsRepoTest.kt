@@ -54,3 +54,21 @@ class AppsRepoTest {
         assertEquals(DemoCatalog.apps.map { it.id }.toSet() - "paramount", AppsRepo(FakePackages(tv)).installed(DemoCatalog.apps))
     }
 }
+
+class OpenTitleTest {
+    private class Pk(val links: Boolean, val search: Boolean) : Packages {
+        val did = mutableListOf<String>()
+        override fun isLaunchable(pkg: String) = true
+        override fun launch(pkg: String): Boolean { did += "launch"; return true }
+        override fun openStore(pkg: String) {}
+        override fun openLink(pkg: String, url: String): Boolean { if (links) did += "link $url"; return links }
+        override fun searchIn(pkg: String, query: String): Boolean { if (search) did += "search $query"; return search }
+    }
+    private val netflix = com.bittv.home.data.DemoCatalog.apps.first { it.id == "netflix" }
+
+    @Test fun titlePageFirstThenSearchThenTheApp() {
+        Pk(true, true).also { AppsRepo(it).openTitle(netflix, "https://www.netflix.com/title/80057281", "Stranger Things"); assertEquals(listOf("link https://www.netflix.com/title/80057281"), it.did) }
+        Pk(false, true).also { AppsRepo(it).openTitle(netflix, "https://www.nowtv.com/watch/x", "Stranger Things"); assertEquals(listOf("search Stranger Things"), it.did) }
+        Pk(false, false).also { AppsRepo(it).openTitle(netflix, null, "Stranger Things"); assertEquals(listOf("launch"), it.did) }
+    }
+}

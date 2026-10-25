@@ -11,6 +11,10 @@ interface Packages {
     fun isLaunchable(pkg: String): Boolean
     fun launch(pkg: String): Boolean
     fun openStore(pkg: String)
+    /** Opens [url] in [pkg] if that app handles it (a title's page inside the app). */
+    fun openLink(pkg: String, url: String): Boolean = false
+    /** Opens [pkg]'s own search with [query], if the app offers one. */
+    fun searchIn(pkg: String, query: String): Boolean = false
     /** The app's own TV banner (its official Google TV artwork), if it ships one. */
     fun banner(pkg: String): android.graphics.Bitmap? = null
 }
@@ -21,6 +25,11 @@ class AppsRepo(private val packages: Packages) {
     /** Ids of the apps that are installed; read again on every resume (apps come and go). */
     fun installed(apps: List<AppEntry>): Set<String> = apps.filter { packageFor(it) != null }.map { it.id }.toSet()
     fun launch(app: AppEntry): Boolean = packageFor(app)?.let(packages::launch) ?: false
+    /** A title in its app: its own page there, else the app's search for it, else just the app. */
+    fun openTitle(app: AppEntry, url: String?, name: String): Boolean {
+        val pkg = packageFor(app) ?: return false
+        return (url != null && packages.openLink(pkg, url)) || packages.searchIn(pkg, name) || packages.launch(pkg)
+    }
     fun openStore(app: AppEntry) = packages.openStore(app.packages.first())
     fun banner(app: AppEntry): android.graphics.Bitmap? = packageFor(app)?.let(packages::banner)
     /** Opens the first of [pkgs] that is installed (the Browser and Media shortcuts); false if none is. */
@@ -49,6 +58,23 @@ class AndroidPackages(private val context: Context) : Packages {
             }
         }
     } catch (e: Exception) { null }
+
+    private fun start(i: Intent): Boolean = i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).let {
+        if (pm.resolveActivity(it, 0) == null) false
+        else try { context.startActivity(it); true } catch (e: ActivityNotFoundException) { false } catch (e: SecurityException) { false }
+    }
+    override fun openLink(pkg: String, url: String): Boolean {
+        // ITVX accepts its web links but shows its home page (checked on the TV): its own search finds the title instead
+        if (pkg == "air.ITVMobilePlayer") return false
+        val i = Intent(Intent.ACTION_VIEW, Uri.parse(url)).setPackage(pkg)
+            // a fresh start: an app already open in the background would otherwise come forward and ignore the link
+            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        // Netflix's TV app only acts on a link that says where it came from (it closes straight away otherwise)
+        if (pkg == "com.netflix.ninja") { i.data = Uri.parse(url.replaceFirst("https://", "http://")); i.putExtra("source", "30") }
+        return start(i)
+    }
+    override fun searchIn(pkg: String, query: String) =
+        start(Intent(Intent.ACTION_SEARCH).setPackage(pkg).putExtra(android.app.SearchManager.QUERY, query))
 
     override fun openStore(pkg: String) {
         val i = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$pkg")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

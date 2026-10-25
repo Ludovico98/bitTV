@@ -14,6 +14,12 @@ import com.bittv.home.ui.theme.TvCanvas
 class MainActivity : ComponentActivity() {
     private val homeSignal = mutableIntStateOf(0)
     private val askSignal = mutableIntStateOf(0)
+    private val wakeSignal = mutableIntStateOf(0)
+    /** When the screen last came on (TV woken from standby): BitTV coming back right after plays the boot animation. */
+    private var lastScreenOn = 0L
+    private val screenOn = object : android.content.BroadcastReceiver() {
+        override fun onReceive(c: android.content.Context, i: Intent) { lastScreenOn = android.os.SystemClock.elapsedRealtime() }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -23,10 +29,23 @@ class MainActivity : ComponentActivity() {
         val skipBoot = intent.getBooleanExtra(EXTRA_SKIP_BOOT, false) ||
             savedInstanceState != null || !bootGate().shouldPlay(bootCount())
         val demoCatalog = intent.getBooleanExtra(EXTRA_DEMO_CATALOG, false)
-        setContent { BitTvTheme { TvCanvas { BitTvRoot(graph, skipBoot, homeSignal.intValue, demoCatalog, askSignal.intValue) } } }
+        setContent { BitTvTheme { TvCanvas { BitTvRoot(graph, skipBoot, homeSignal.intValue, demoCatalog, askSignal.intValue, wakeSignal.intValue) } } }
     }
 
     // singleTask: pressing Home while BitTV is already in front arrives here
+    override fun onStart() {
+        super.onStart()
+        androidx.core.content.ContextCompat.registerReceiver(this, screenOn, android.content.IntentFilter(Intent.ACTION_SCREEN_ON),
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (com.bittv.home.platform.WakeGate.playOnResume(lastScreenOn, android.os.SystemClock.elapsedRealtime())) { lastScreenOn = 0; wakeSignal.intValue++ }
+    }
+
+    override fun onDestroy() { runCatching { unregisterReceiver(screenOn) }; super.onDestroy() }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         if (intent.hasCategory(Intent.CATEGORY_HOME)) homeSignal.intValue++
