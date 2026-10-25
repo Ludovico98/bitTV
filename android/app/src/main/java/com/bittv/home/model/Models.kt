@@ -65,3 +65,10 @@ data class WeatherNow(val tempC: Int, val kind: WeatherKind)
 data class NowPlaying(val track: String, val artist: String, val durationSec: Int, val positionSec: Int, val playing: Boolean)
 
 data class NewsItem(val headline: String, val source: String)
+
+/** A phone, tablet or computer that can cast or mirror to the TV. */
+data class CastDevice(val id: String, val name: String, val kind: Kind) {
+    enum class Kind(val label: String, val via: String) {
+        IPHONE("iPhone", "AirPlay"), IPAD("iPad", "AirPlay"), MAC("Mac", "AirPlay"), ANDROID("Android", "Google Cast"),
+    }
+}

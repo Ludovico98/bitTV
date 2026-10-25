@@ -114,6 +114,10 @@ fun HomeScreen(
     val overlayRequester = remember { FocusRequester() }
     val rowRequesters = remember { mutableMapOf<String, FocusRequester>() }
     var lastRowKey by remember { mutableStateOf<String?>(null) }
+    var castOpen by remember { mutableStateOf(false) }
+    var castReturn by remember { mutableStateOf<FocusRequester?>(null) }
+    LaunchedEffect(castOpen) { if (!castOpen) castReturn?.let { castReturn = null; it.requestFocus() } }
+    LaunchedEffect(active) { if (!active) castOpen = false }   // another screen opened: the menu goes
     fun tryFocus(r: FocusRequester?) = r != null && r.requestFocus()
     // where focus goes back to: the last item, else its row (the item may have been removed), else the banner
     fun returnFocus(): Boolean = tryFocus(lastContent) || tryFocus(lastRowKey?.let { rowRequesters[it] }) || tryFocus(heroRequester)
@@ -159,7 +163,7 @@ fun HomeScreen(
                         verticalAlignment = Alignment.CenterVertically) {
                         ShortcutButtons(onFocused = { lastContent = it; lastRowKey = null }, items = listOf(
                             Shortcut("Search", Glyph.SEARCH, actions::openSearch),
-                            Shortcut("Cast", Glyph.CAST, actions::cast),
+                            Shortcut("Cast", Glyph.CAST) { castReturn = lastContent; castOpen = true; actions.cast() },
                             Shortcut("Browser", Glyph.GLOBE) { },
                             Shortcut("Media", Glyph.MEDIA) { },
                             Shortcut("Settings", Glyph.SETTINGS, actions::openSettings),
@@ -193,6 +197,13 @@ fun HomeScreen(
                     )
                 }
             }
+        }
+
+        if (castOpen) {
+            // a light scrim says the menu is in charge; it sits under the Cast button, clear of the button's name
+            Box(Modifier.fillMaxSize().background(Color(0x59000000)))
+            CastMenu(state.castDevices, state.tvName, onClose = { castOpen = false },
+                Modifier.padding(start = ContentX + RowStartPad + 46.dp, top = 104.dp))
         }
 
         // a small clock once the top bar has scrolled away

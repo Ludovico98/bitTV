@@ -1,6 +1,7 @@
 package com.bittv.home.data
 
 import com.bittv.home.model.AppEntry
+import com.bittv.home.model.CastDevice
 import com.bittv.home.model.Progress
 import com.bittv.home.model.Svc
 import com.bittv.home.model.Title
@@ -96,6 +97,13 @@ object DemoCatalog {
     )
 
     // Package names to verify on the TV with `pm list packages` (plan 2); the first installed one wins.
+    /** The Cast menu's devices until plan 2 finds them on the network. */
+    val castDevices: List<CastDevice> = listOf(
+        CastDevice("iphone", "Ludovico’s iPhone", CastDevice.Kind.IPHONE),
+        CastDevice("macbook", "Ludovico’s MacBook Air", CastDevice.Kind.MAC),
+        CastDevice("pixel", "Pixel 9", CastDevice.Kind.ANDROID),
+    )
+
     val apps: List<AppEntry> = listOf(
         AppEntry("netflix", "Netflix", listOf("com.netflix.ninja"), Svc.NETFLIX),
         AppEntry("prime", "Prime Video", listOf("com.amazon.amazonvideo.livingroom"), Svc.PRIME),

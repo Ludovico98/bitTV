@@ -1,6 +1,7 @@
 package com.bittv.home.ui.home
 
 import com.bittv.home.model.AppEntry
+import com.bittv.home.model.CastDevice
 import com.bittv.home.model.NewsItem
 import com.bittv.home.model.NowPlaying
 import com.bittv.home.model.Prefs
@@ -23,6 +24,10 @@ data class HomeState(
     val nowPlaying: NowPlaying?,
     val news: List<NewsItem>,
     val weather: WeatherNow?,
+    /** Devices that can cast to this TV, shown by the Cast button. */
+    val castDevices: List<CastDevice> = emptyList(),
+    /** The name phones see for this TV. */
+    val tvName: String = "Living Room TV",
 )
 
 interface HomeActions {

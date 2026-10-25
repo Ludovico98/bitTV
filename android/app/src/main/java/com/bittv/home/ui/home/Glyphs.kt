@@ -14,7 +14,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import com.bittv.home.model.WeatherKind
 
 /** Line icons on a 24-unit grid, drawn in [color] (the prototype's SVG icons). */
-enum class Glyph { SEARCH, CAST, GLOBE, MEDIA, SETTINGS, PREV, PLAY, PAUSE, NEXT, CLOCK, CALENDAR, MIC, BACK, STAR, STAR_FILLED, HDMI, POWER, MUTED }
+enum class Glyph { SEARCH, CAST, GLOBE, MEDIA, SETTINGS, PREV, PLAY, PAUSE, NEXT, CLOCK, CALENDAR, MIC, BACK, STAR, STAR_FILLED, HDMI, POWER, MUTED, PHONE, TABLET, LAPTOP }
 
 @Composable
 fun GlyphIcon(glyph: Glyph, color: Color, modifier: Modifier) = Canvas(modifier) { drawGlyph(glyph, color) }
@@ -26,6 +26,12 @@ fun DrawScope.drawGlyph(g: Glyph, color: Color) {
     fun path(block: Path.() -> Unit) = Path().apply(block)
     when (g) {
         Glyph.SEARCH -> { drawCircle(color, 7 * u, p(11f, 11f), style = st); drawLine(color, p(20f, 20f), p(16f, 16f), st.width, StrokeCap.Round) }
+        Glyph.PHONE -> { drawRoundRect(color, p(7f, 2f), Size(10 * u, 20 * u), CornerRadius(2.5f * u), style = st)
+            drawLine(color, p(10.5f, 18.5f), p(13.5f, 18.5f), st.width) }
+        Glyph.TABLET -> { drawRoundRect(color, p(4f, 2.5f), Size(16 * u, 19 * u), CornerRadius(2.5f * u), style = st)
+            drawLine(color, p(11f, 18.5f), p(13f, 18.5f), st.width) }
+        Glyph.LAPTOP -> { drawRoundRect(color, p(4.5f, 5f), Size(15 * u, 10.5f * u), CornerRadius(1.5f * u), style = st)
+            drawLine(color, p(2f, 18.5f), p(22f, 18.5f), st.width) }
         Glyph.CAST -> {
             drawPath(path { moveTo(3 * u, 7 * u); lineTo(3 * u, 5 * u); quadraticTo(3 * u, 3 * u, 5 * u, 3 * u); lineTo(19 * u, 3 * u)
                 quadraticTo(21 * u, 3 * u, 21 * u, 5 * u); lineTo(21 * u, 19 * u); quadraticTo(21 * u, 21 * u, 19 * u, 21 * u); lineTo(15 * u, 21 * u) }, color, style = st)
