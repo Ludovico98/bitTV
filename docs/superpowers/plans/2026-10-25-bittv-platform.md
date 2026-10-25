@@ -16,7 +16,7 @@
 - No personal data in any request (user agent `BitTV/0.1 (personal Android TV home screen)`).
 - Network failures → last cached value or an explicit offline state; never invented numbers.
 - Loops and refreshes run only while Home is resumed; refresh weather every 30 min, news every 15 min, Today at midnight.
-- Mic button behaviour is a setting (`MicMode.BITTV` answers in the active section / `MicMode.GOOGLE` lets the system Assistant handle it), default `BITTV`, pending Ludovico's decision.
+- Mic button behaviour is a setting (`MicMode.BITTV` answers in the active section / `MicMode.GOOGLE` lets the system Assistant handle it), default `BITTV` (decided 2026-10-25). Questions BitTV cannot answer are handed to Google Assistant.
 
 ## Review Focus
 
@@ -49,7 +49,11 @@
 ### Task 7: TV-only adapters (implemented with safe fallbacks; verified on the TV later)
 **Files:** `platform/NowPlaying.kt` (NotificationListenerService + MediaSessionManager → `StateFlow<NowPlaying?>`, transport controls; needs `cmd notification allow_listener` — install.sh grants it); `platform/WatchNext.kt` (`READ_TV_LISTINGS`, read whole table, filter in code; empty → row uses Watch Later); `platform/TvInputs.kt` (list HDMI inputs and state; `TvView` passthrough attempt, status tile fallback). Tests with fakes only (`nowPlayingMapsMetadata`, `watchNextEmptyFallsBack`, `inputsWithoutPermissionGiveStatusTile`).
 
-### Task 8: TMDB catalogue (when `tmdb.apiKey` is set)
+### Task 8: TMDB catalogue — DONE ahead of plan (commit a3444c1); remaining: try it with the real key
+### Task 9: Cast devices from the network
+**Files:** `platform/CastDevices.kt` (`NsdManager` discovery of `_companion-link._tcp` / `_airplay._tcp` for Apple devices by name; Android phones remembered when they cast; demo list as fallback). Tests: `castDevicesFromBonjourNames`, `noNetworkKeepsKnownDevices`.
+
+### (was) Task 8: TMDB catalogue (when `tmdb.apiKey` is set)
 **Files:** `data/TmdbCatalog.kt` (trending + watch providers GB/IT mapped to `Svc`, posters at tile size), `AppGraph` picks it when the key exists. Tests with fixtures (`mapsProvidersToServices`, `noKeyUsesDemo`).
 
 Each task: failing test → implement → pass → screenshot on the emulator where visible → commit.

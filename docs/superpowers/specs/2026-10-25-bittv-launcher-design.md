@@ -130,8 +130,18 @@ autoplay, `onTrimMemory` releases image caches only when Home is not visible (cl
 notification listener and READ_TV_LISTINGS, set as Home: disable `launcherx` and `setupwraith` in the safe order
 cleanyourtv documents), `restore.sh` (re-enable everything), `debloat.txt`. **None of it runs until Ludovico says so.**
 
-## 10. Open questions for Ludovico
+## 10. Decisions (2026-10-25) and what is still open
 
-1. Assistant: BitTV owns the mic button (answers in the section) vs Google Assistant overlay — or long-press split.
-2. TMDB API key (free) for real artwork and "where to watch" data; until then the demo catalogue is used.
-3. Which debloat lines to keep (Chromecast, AirPlay, Netflix key, game bar…).
+1. **Assistant — decided: answers appear in the active section.** Google Assistant does not hand its answers to
+   other apps, so "Google answers in the active section" is built as: the mic key opens BitTV's listening state,
+   speech is recognised by the TV's Google speech service, BitTV answers in the active section (weather, time,
+   Wikipedia with a picture and a spoken reply), and anything it can't answer (playing a show, smart home, apps)
+   is handed to Google Assistant unchanged. `MicMode.BITTV` is the default; `MicMode.GOOGLE` stays as a setting.
+2. **TMDB — decided: yes.** `TmdbCatalog` is built (popular titles per service, GB region, IT for La7/RaiPlay,
+   artwork colours for the ambient bleed, 12 h cache). It switches on when `tmdb.apiKey` is in `local.properties`.
+   Still needed: the key itself (free, from Ludovico's TMDB account → Settings → API).
+3. **Debloat — decided:** YouTube disabled (SmartTube replaces it); Miracast, T-Cast and AirPlay kept. Still open:
+   YouTube Music and the game bar (kept by default for the PS5).
+4. **Cast — added:** the Cast button opens a dropdown of the devices that can cast to the TV, by name, with how
+   each connects (iPhone/iPad/Mac via AirPlay, Android via Google Cast) and the one step to take on it. The demo
+   lists fixed devices; plan 2 finds Apple devices on the network (Bonjour) and remembers Android phones that cast.
