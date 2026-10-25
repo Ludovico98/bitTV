@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
@@ -47,7 +48,7 @@ fun Banner(items: List<Title>, index: Int, subs: Set<Svc>, apps: List<AppEntry>,
     FocusTile(onClick = { onClick(current) }, onFocus = { onFocus(current) }, width = width, height = height,
         shape = RoundedCornerShape(17.dp), focusScale = 1.025f, modifier = modifier) {
         Crossfade(current, animationSpec = LocalMotion.current.tween(400), label = "slide") { t ->
-            Box(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize().graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }) {
                 PosterArt(t, Modifier.fillMaxSize(), showTitle = false, imageWidth = 1280, cornerRadius = 17.dp)
                 // real artwork is busy: a deeper shade behind the text (and along the bottom) than the drawn posters need
                 val deep = t.art != null

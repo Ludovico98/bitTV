@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Frame times while navigating Home: the same presses every run (4× Right, 4× Left, Down, Up), then gfxinfo's
-# percentiles and framestats' average phase split. Start with BitTV on Home, banner or first row focused.
+# Frame times while browsing Home: the same presses every run — from the first row, 4× Right and 4× Left along its
+# tiles, then Down and Up — then gfxinfo's percentiles, framestats' average phase split, and smoothness: how many
+# frame-to-frame steps inside an animation took one vsync (≤ 20 ms at 60 Hz) and the longest one.
 # Only presses the remote's arrows (nothing is changed on the device), so it needs no --apply.
 #   tools/tv/perf-nav.sh 192.168.0.175:5555
 source "$(dirname "$0")/lib.sh"
@@ -8,14 +9,14 @@ parse_target "$@"
 PKG=com.bittv.home
 # the screensaver may be up: end it first (WAKEUP does nothing to a screen already awake)
 "${ADB[@]}" shell input keyevent KEYCODE_WAKEUP; sleep 1.5
-# Back on Home closes an answer, then puts focus on the banner: every run starts from the same place
-"${ADB[@]}" shell "input keyevent 4; sleep 0.5; input keyevent 4"; sleep 1.5
+# Back on Home closes an answer, then puts focus on the banner; Down to the first row: every run starts there
+"${ADB[@]}" shell "input keyevent 4; sleep 0.5; input keyevent 4; sleep 1; input keyevent 20"; sleep 1.5
 "${ADB[@]}" shell dumpsys gfxinfo $PKG reset >/dev/null
 "${ADB[@]}" shell 'for i in 1 2 3 4; do input keyevent 22; sleep 0.4; done
   for i in 1 2 3 4; do input keyevent 21; sleep 0.4; done
   input keyevent 20; sleep 0.7; input keyevent 19; sleep 0.7'
 "${ADB[@]}" shell dumpsys gfxinfo $PKG | tr -d '\r' | grep -E '^(Total frames|Janky frames:|50th percentile|90th percentile)'
-# framestats: only frames with Flags=0 (real frames, not the first after a reset); times in ns
+# framestats: only real frames (Flags=0, completed); times in ns
 "${ADB[@]}" shell dumpsys gfxinfo $PKG framestats | tr -d '\r' | awk -F, '
   /---PROFILEDATA---/ { p = !p; next }
   p && $1 == "Flags" { for (i = 1; i <= NF; i++) h[$i] = i; next }
@@ -26,5 +27,11 @@ PKG=com.bittv.home
     issue += ($(h["SwapBuffers"]) - $(h["IssueDrawCommandsStart"])) / 1e6
     swap  += ($(h["FrameCompleted"]) - $(h["SwapBuffers"])) / 1e6
     tot   += ($(h["FrameCompleted"]) - $(h["IntendedVsync"])) / 1e6
+    # a step longer than 120 ms is the pause between presses (0.4 s apart), not part of an animation
+    if (last) { g = ($(h["IntendedVsync"]) - last) / 1e6; if (g < 120) { steps++; if (g <= 20) smooth++; if (g > worst) worst = g } }
+    last = $(h["IntendedVsync"])
   }
-  END { if (n) printf "framestats (%d frames, avg ms): input+anim %.1f | layout/record %.1f | issue %.1f | swap (GPU wait) %.1f | total %.1f\n", n, ui/n, rec/n, issue/n, swap/n, tot/n }'
+  END {
+    if (n) printf "framestats (%d frames, avg ms): input+anim %.1f | layout/record %.1f | issue %.1f | swap (GPU wait) %.1f | total %.1f\n", n, ui/n, rec/n, issue/n, swap/n, tot/n
+    if (steps) printf "smoothness: %d/%d animation steps took one vsync (%.0f%%), longest step %.0f ms\n", smooth, steps, 100 * smooth / steps, worst
+  }'

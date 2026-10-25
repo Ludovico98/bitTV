@@ -70,3 +70,17 @@ Target: P50 ≤ 17 ms, P90 ≤ 25 ms, layout/record ≤ 10 ms.
 layer whose content changed and otherwise copies its texture. Without them every unchanged row was redrawn tile by
 tile; the mask itself costs nothing measurable. So the fade and the rail's layer stay, and the remaining GPU time is
 in re-rendering the *focused* row's layer — i.e. its tiles' own drawing (posters).
+
+### Along a row (perf-nav from the first row: 4× Right, 4× Left along its tiles, Down, Up)
+
+The first table's presses started on the banner, so Right/Left moved across the Spotify buttons, not along a row.
+From here the script starts on the first row. "Smooth" = animation steps that took one vsync (≤ 20 ms) — what the
+eye sees; P50/P90 are each frame's latency through the pipeline (a frame can take 25 ms and still arrive every vsync).
+
+| Build | Frames | Janky | P50 | P90 | smooth steps | longest step | swap (GPU) |
+|---|---|---|---|---|---|---|---|
+| Original (5938a85), 3 runs | 30 / 36 / 33 | 100 % | 109 / 109 / 105 | 150 | 29 / 38 / 36 % | 67–217 ms | 65.6 / 64.9 / 66.2 |
+| + background once, posters as one image, rows skip recomposition, banner slide cached in a layer, 3 runs | 56 / 55 / 52 | 23–25 % | 24 / 34 / 27 | 38 | 89 / 91 / 86 % | 50 ms | 11.8 / 13.5 / 12.3 |
+
+Experiments on the TV that changed nothing measurable (reverted): no focus glow (`shadow(14.dp)`), no sway, the
+Active section cached in a layer. SurfaceFlinger composes BitTV as one hardware-scaled layer (no GPU composition).
