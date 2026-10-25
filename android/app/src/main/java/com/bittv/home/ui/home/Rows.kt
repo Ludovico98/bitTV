@@ -39,6 +39,11 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
@@ -117,8 +122,11 @@ fun HomeRowSection(
                 Modifier
                     .then(if (rowRequester != null) Modifier.focusRequester(rowRequester) else Modifier)
                     .fillMaxWidth()
-                    .drawBehind { // the glass strip behind the tiles, open on the right like the prototype
-                        drawRoundRect(Glass, Offset(0f, 2.dp.toPx()), Size(size.width + 40.dp.toPx(), size.height - 24.dp.toPx()), CornerRadius(15.dp.toPx()))
+                    .fadeIntoGap()
+                    .drawBehind { // the glass strip behind the tiles, open on the right; its left edge lines up with the banner,
+                        // leaving the gap to the app bar clear (tiles scrolled past it still peek into that gap)
+                        val x = RowStartPad.toPx()
+                        drawRoundRect(Glass, Offset(x, 2.dp.toPx()), Size(size.width - x + 40.dp.toPx(), size.height - 24.dp.toPx()), CornerRadius(15.dp.toPx()))
                     }
                     .focusProperties { onExit = { if (requestedFocusDirection == FocusDirection.Right) cancelFocusChange() } },
                 contentPadding = PaddingValues(start = RowStartPad, end = 40.dp, top = 10.dp),
@@ -234,3 +242,24 @@ private fun Ps5Preview(animate: Boolean, modifier: Modifier) {
         }
     }
 }
+
+private val GlowBleed = 28.dp
+
+/**
+ * Tiles scrolled left of the glass strip fade out across the gap to the app bar instead of running into it. The
+ * fade is a mask over an offscreen layer, so the layer is grown by [GlowBleed] above and below: the focus glow is
+ * never cut off square.
+ */
+private fun Modifier.fadeIntoGap(): Modifier = this
+    .layout { m, c ->
+        val b = GlowBleed.roundToPx()
+        val p = m.measure(c.copy(minHeight = c.minHeight + 2 * b, maxHeight = if (c.hasBoundedHeight) c.maxHeight + 2 * b else c.maxHeight))
+        layout(p.width, p.height - 2 * b) { p.place(0, -b) }
+    }
+    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+    .drawWithContent {
+        drawContent()
+        // clear next to the app bar, fully visible from the strip's edge
+        drawRect(Brush.horizontalGradient(listOf(Color.Transparent, Color.Black), startX = 10.dp.toPx(), endX = RowStartPad.toPx()), blendMode = BlendMode.DstIn)
+    }
+    .padding(vertical = GlowBleed)
