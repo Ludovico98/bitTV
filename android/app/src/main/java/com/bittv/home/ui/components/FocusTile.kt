@@ -52,12 +52,13 @@ fun FocusTile(
     height: Dp,
     glow: Boolean = true,
     shape: Shape = RoundedCornerShape(9.dp),
+    focusScale: Float = 1.10f,
     onFocus: () -> Unit = {},
     content: @Composable BoxScope.() -> Unit,
 ) {
     val motion = LocalMotion.current
     var focused by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(if (focused) 1.10f else 1f, motion.tween(160), label = "tileScale")
+    val scale by animateFloatAsState(if (focused) focusScale else 1f, motion.tween(160), label = "tileScale")
     Box(
         modifier
             .onFocusChanged { if (it.isFocused != focused) { focused = it.isFocused; if (focused) onFocus() } }

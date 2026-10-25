@@ -52,3 +52,11 @@ fun Title.isAvailable(subs: Set<Svc>): Boolean = services.any { it in subs }
 
 /** The service a title opens in: the first one he has, otherwise the first one listed. */
 fun Title.mainService(subs: Set<Svc>): Svc = services.firstOrNull { it in subs } ?: services.first()
+
+enum class WeatherKind { SUN, CLOUD, RAIN }
+
+data class WeatherNow(val tempC: Int, val kind: WeatherKind)
+
+data class NowPlaying(val track: String, val artist: String, val durationSec: Int, val positionSec: Int, val playing: Boolean)
+
+data class NewsItem(val headline: String, val source: String)

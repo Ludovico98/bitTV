@@ -1,6 +1,6 @@
 package com.bittv.home.ui.components
 
-import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
@@ -12,8 +12,8 @@ import androidx.compose.runtime.staticCompositionLocalOf
  * Page movement is a critically damped spring, so a new key press redirects it without restarting.
  */
 class Motion(val enabled: Boolean) {
-    fun <T> tween(ms: Int): AnimationSpec<T> = if (enabled) tween(ms, easing = FastOutSlowInEasing) else snap()
-    fun <T> pageSpring(): AnimationSpec<T> = if (enabled) spring(dampingRatio = 1f, stiffness = 340f) else snap()
+    fun <T> tween(ms: Int): FiniteAnimationSpec<T> = if (enabled) tween(ms, easing = FastOutSlowInEasing) else snap()
+    fun <T> pageSpring(): FiniteAnimationSpec<T> = if (enabled) spring(dampingRatio = 1f, stiffness = 340f) else snap()
     val loops: Boolean get() = enabled
 }
 
