@@ -22,7 +22,8 @@ class AppGraph(context: Context) {
     val tvInputs = com.bittv.home.platform.AndroidTvInputs(context.applicationContext)
     val network = com.bittv.home.platform.NetworkScanner(context.applicationContext)
     // Ludovico lives in Redhill, Surrey
-    val answers = com.bittv.home.assistant.LiveAnswers({ url -> httpGet(url) }, place = "Redhill", lat = 51.24, lon = -0.17)
+    val answers = com.bittv.home.assistant.LiveAnswers({ url -> httpGet(url) }, place = "Redhill", lat = 51.24, lon = -0.17,
+        general = BuildConfig.ANTHROPIC_KEY.takeIf { it.isNotBlank() }?.let { com.bittv.home.platform.ClaudeAnswers(it) })
     val speech = com.bittv.home.platform.SpeechListener(com.bittv.home.platform.AndroidSpeechEngine(context.applicationContext))
     val catalog = CatalogRepo(
         source = BuildConfig.TMDB_KEY.takeIf { it.isNotBlank() }?.let { key -> TmdbCatalog(key) { url, auth -> httpGet(url, auth) } },

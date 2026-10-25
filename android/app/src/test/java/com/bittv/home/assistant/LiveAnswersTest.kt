@@ -91,3 +91,48 @@ class LiveAnswersTest {
         assertTrue(a is Answer.Text); assertTrue(a.say, a.say.contains("internet"))
     }
 }
+
+class GeneralAnswersTest {
+    private val summary = """{"type":"standard","title":"Colosseum","extract":"The Colosseum is an amphitheatre in Rome.",
+        "thumbnail":{"source":"https://upload.wikimedia.org/x/330px-Colosseo.jpg"}}"""
+    private val search = """{"pages":[{"key":"Colosseum","title":"Colosseum"}]}"""
+    private fun fetch(url: String): String? = when { "search/title" in url -> search; "page/summary" in url -> summary; else -> null }
+    private fun answers(reply: GeneralReply?, asked: MutableList<String> = mutableListOf()) =
+        LiveAnswers({ fetch(it) }, now = { java.time.LocalDateTime.of(2026, 10, 25, 14, 5) },
+            general = GeneralSource { q -> asked += q; reply })
+
+    @Test fun anyQuestionIsAnsweredInTheSectionWithItsPicture() = runTest {
+        val a = answers(GeneralReply("It was finished in 80 AD under Titus.", subject = "Colosseum", needsGoogle = false))
+            .answer("when was the colosseum built") as Answer.Picture
+        assertEquals("It was finished in 80 AD under Titus.", a.say)
+        assertEquals("https://upload.wikimedia.org/x/960px-Colosseo.jpg", a.imageUrl)
+    }
+
+    @Test fun answerWithoutASubjectIsText() = runTest {
+        val a = answers(GeneralReply("A marathon is 42.195 kilometres.", subject = null, needsGoogle = false)).answer("how long is a marathon")
+        assertEquals(Answer.Text("how long is a marathon", "A marathon is 42.195 kilometres.", "A marathon is 42.195 kilometres."), a)
+    }
+
+    @Test fun somethingOnlyGoogleKnowsIsHandedOver() = runTest {
+        val q = "what's on my calendar today"
+        assertEquals(Answer.Handoff(q), answers(GeneralReply("", null, needsGoogle = true)).answer(q))
+    }
+
+    @Test fun commandsNeverReachTheModel() = runTest {
+        val asked = mutableListOf<String>()
+        for (q in listOf("play Stranger Things on Netflix", "turn off the lights", "open YouTube", "metti Rai 1"))
+            assertEquals(Answer.Handoff(q), answers(GeneralReply("x", null, false), asked).answer(q))
+        assertTrue(asked.isEmpty())
+    }
+
+    @Test fun weatherAndTimeStayLocal() = runTest {
+        val asked = mutableListOf<String>()
+        answers(GeneralReply("x", null, false), asked).answer("what time is it")
+        assertTrue(asked.isEmpty())
+    }
+
+    @Test fun noModelReplyFallsBackToWikipedia() = runTest {
+        val a = answers(null).answer("what is the Colosseum")
+        assertTrue(a is Answer.Picture)
+    }
+}

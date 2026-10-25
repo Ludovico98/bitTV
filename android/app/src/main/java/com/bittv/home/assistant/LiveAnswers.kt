@@ -17,13 +17,36 @@ class LiveAnswers(
     private val fetch: suspend (String) -> String?,
     private val now: () -> LocalDateTime = { LocalDateTime.now() },
     private val place: String = "London", private val lat: Double = 51.51, private val lon: Double = -0.13,
+    /** General knowledge (Claude) for any question; null without a key — then Wikipedia handles who/what questions. */
+    private val general: GeneralSource? = null,
 ) : AnswerProvider {
 
     override suspend fun answer(query: String): Answer = when {
         AnswerClassifier.kind(query) == AnswerKind.WEATHER -> weather(query)
         AnswerClassifier.kind(query) == AnswerKind.TIME -> clock()
-        QUESTION.containsMatchIn(query.trim()) -> wiki(query)
-        else -> Answer.Handoff(query)
+        COMMAND.containsMatchIn(query.trim()) -> Answer.Handoff(query)   // only Google can play, open or switch things
+        else -> general?.ask(query)?.let { fromGeneral(query, it) }
+            ?: if (QUESTION.containsMatchIn(query.trim())) wiki(query) else Answer.Handoff(query)
+    }
+
+    private suspend fun fromGeneral(q: String, r: GeneralReply): Answer {
+        if (r.needsGoogle || r.say.isBlank()) return Answer.Handoff(q)
+        val pic = r.subject?.let { summary(it) }?.thumb
+        return if (pic != null) Answer.Picture(pic.replace(Regex("/\\d+px-"), "/960px-"), pic, r.subject, r.say) else Answer.Text(q, r.say, r.say)
+    }
+
+    private class Summary(val title: String, val extract: String, val thumb: String?, val disambiguation: Boolean)
+
+    /** Wikipedia's best page for [term]: title, first sentences and picture; null when offline or nothing matches. */
+    private suspend fun summary(term: String): Summary? {
+        val search = fetch("https://en.wikipedia.org/w/rest.php/v1/search/title?q=${enc(term)}&limit=1") ?: return null
+        val key = runCatching { JSONObject(search).getJSONArray("pages").getJSONObject(0).getString("key") }.getOrNull() ?: return null
+        val body = fetch("https://en.wikipedia.org/api/rest_v1/page/summary/${enc(key)}") ?: return null
+        return runCatching {
+            val j = JSONObject(body)
+            Summary(j.getString("title"), j.optString("extract"), j.optJSONObject("thumbnail")?.optString("source")?.ifBlank { null },
+                j.optString("type") == "disambiguation")
+        }.getOrNull()
     }
 
     private fun offline() = Answer.Text("No internet", "BitTV can't reach the internet right now.", "Sorry, I can't reach the internet right now.")
@@ -67,21 +90,18 @@ class LiveAnswers(
 
     private suspend fun wiki(q: String): Answer {
         val term = term(q).ifBlank { return Answer.Handoff(q) }
-        val search = fetch("https://en.wikipedia.org/w/rest.php/v1/search/title?q=${enc(term)}&limit=1") ?: return offline()
-        val key = runCatching { JSONObject(search).getJSONArray("pages").getJSONObject(0).getString("key") }.getOrNull() ?: return Answer.Handoff(q)
-        val body = fetch("https://en.wikipedia.org/api/rest_v1/page/summary/${enc(key)}") ?: return offline()
-        return runCatching {
-            val j = JSONObject(body)
-            if (j.optString("type") == "disambiguation") return Answer.Handoff(q)
-            val title = j.getString("title")
-            val say = j.getString("extract").split(Regex("(?<=[.!?])\\s+")).take(2).joinToString(" ")
-            val thumb = j.optJSONObject("thumbnail")?.optString("source")?.ifBlank { null }
-            if (thumb != null) Answer.Picture(thumb.replace(Regex("/\\d+px-"), "/960px-"), thumb, title, say)
-            else Answer.Text(title, say, say)
-        }.getOrElse { Answer.Handoff(q) }
+        if (fetch("https://en.wikipedia.org/w/rest.php/v1/search/title?q=${enc(term)}&limit=1") == null) return offline()
+        val s = summary(term) ?: return Answer.Handoff(q)
+        if (s.disambiguation) return Answer.Handoff(q)
+        val say = s.extract.split(Regex("(?<=[.!?])\\s+")).take(2).joinToString(" ")
+        return if (s.thumb != null) Answer.Picture(s.thumb.replace(Regex("/\\d+px-"), "/960px-"), s.thumb, s.title, say)
+        else Answer.Text(s.title, say, say)
     }
 
     companion object {
+        /** Things to do rather than know: only Google Assistant can play, open, switch or set them. */
+        private val COMMAND = Regex("^(play|open|launch|start|put on|turn|switch|set|remind|call|show me|watch|pause|stop|resume|" +
+            "skip|volume|mute|record|cast|metti|apri|accendi|spegni|guarda|riproduci|imposta)\\b", RegexOption.IGNORE_CASE)
         /** Questions Wikipedia can answer (English and Italian). Commands and anything else go to Google. */
         private val QUESTION = Regex("^(who|what|where|when|which|how|why|tell me about|chi|cos|cosa|dove|quando|quanto|com'è|come)\\b",
             RegexOption.IGNORE_CASE)
@@ -102,3 +122,9 @@ class LiveAnswers(
         private fun enc(s: String) = URLEncoder.encode(s, "UTF-8").replace("+", "%20")
     }
 }
+
+/** A general-knowledge answer: [say] is read aloud; [subject] names what a picture should show; [needsGoogle] when only
+ *  Google can answer (the user's own accounts, devices, live scores, bookings…). */
+data class GeneralReply(val say: String, val subject: String?, val needsGoogle: Boolean)
+
+fun interface GeneralSource { suspend fun ask(question: String): GeneralReply? }

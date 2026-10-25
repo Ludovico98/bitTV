@@ -11,6 +11,10 @@ plugins {
 val tmdbKey: String = Properties().apply {
     rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
 }.getProperty("tmdb.apiKey", "").trim()
+// anthropic.apiKey in local.properties: general answers in the active section (without it: Wikipedia only)
+val anthropicKey: String = Properties().apply {
+    rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+}.getProperty("anthropic.apiKey", "").trim()
 
 android {
     namespace = "com.bittv.home"
@@ -24,6 +28,7 @@ android {
         versionName = "0.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "TMDB_KEY", "\"$tmdbKey\"")
+        buildConfigField("String", "ANTHROPIC_KEY", "\"$anthropicKey\"")
     }
 
     buildTypes {
@@ -38,6 +43,9 @@ android {
     }
 
     buildFeatures { compose = true; buildConfig = true }
+
+    // the Anthropic SDK's dependencies each ship the same license files
+    packaging { resources { excludes += setOf("META-INF/DEPENDENCIES", "META-INF/LICENSE*", "META-INF/NOTICE*", "META-INF/*.kotlin_module") } }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -61,6 +69,7 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
     implementation(libs.okhttp)
+    implementation(libs.anthropic.java)
     implementation(libs.kotlinx.coroutines.android)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
