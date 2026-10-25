@@ -67,3 +67,18 @@ lists it as enabled but the system never binds it. Verified: Home from TV Settin
 Google TV's home (launcherx) and Google TV Setup (setupwraith) are enabled again — the Assistant needs both.
 The message persisted with both enabled, after restarting the Assistant app: the remaining known cause is Google TV's
 **Apps only mode** (TV settings → Accounts & sign-in → the Google account), which switches the Assistant off.
+
+## Learned 2026-10-25 (performance and standby work)
+
+- **Updating BitTV with `adb install -r` can drop the Home helper** from `enabled_accessibility_services` (seen after
+  one of many installs this day); `settings put` re-lists it but the TCL does not bind it — switch it on again in
+  Settings → Accessibility after installing.
+- **Standby:** going to sleep puts launcherx's `DispatchActivity` on top (BitTV is stopped while the TV is already
+  non-interactive); waking returns to Home and resumes BitTV ~200 ms *before* `SCREEN_ON` is delivered.
+- **HDMI input state can be stale after a wake:** the PS5's input still read CONNECTED while it was in standby; the
+  Devices row's live preview then opened a TvView session, and TCL's CEC device-select sent the PS5 a Power key (it
+  woke and took over the input). See the open item in docs/perf.md / the report of 2026-10-25.
+- Compose treats *any* enabled accessibility service (here Button Mapper and the Home helper) as a reason to diff
+  semantics every frame; `ComposeA11y` turns that off unless a screen reader is on.
+- Build on this machine with `JAVA_HOME=~/.local/jdks/jdk-21.0.13+9` (the system JDK 21 is a JRE without javac);
+  the emulator needs `-feature -Vulkan -gpu host` (it segfaults with Vulkan).

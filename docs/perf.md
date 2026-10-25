@@ -43,11 +43,9 @@ adb -s emulator-5554 shell pm disable-user --user 0 com.google.android.apps.tv.l
 ## Still to do on the TV (with Ludovico)
 
 1. Cold start and warm return to Home (target ≤ 1.2 s / ≤ 300 ms).
-2. `dumpsys gfxinfo com.bittv.home` while holding Down and Right on Home: P90 ≤ 16 ms.
+2. Navigation: measured 2026-10-25, see "TCL TV — Home navigation" below — 91–96 % of animation steps on time
+   (was 29–38 %); per-frame latency P50 22 ms / P90 27–38 ms (target 17 / 25 not met: the GPU still needs ~12 ms).
 3. PSS after an evening of use (a launcher runs for days).
-4. If frames miss on the MediaTek GPU, the first candidates are the demo posters' layered gradients (real artwork
-   in plan 2 is a single bitmap per tile), the ambient background layers, and each row's offscreen layer for the
-   fade next to the app bar (`fadeIntoGap` in `Rows.kt`, 2–3 rows on screen); the fade can become a plain clip.
 
 ## TCL TV — Home navigation (2026-10-25)
 
@@ -90,3 +88,6 @@ Active section cached in a layer, the sway read only in the draw phase.
 main thread per frame — Compose does that whenever *any* accessibility service is on, here BitTV's Home helper and
 Button Mapper, which only filter keys. `ComposeA11y` hides those from Compose unless a screen reader or touch
 exploration is on (TalkBack keeps working). SurfaceFlinger composes BitTV as one hardware-scaled layer (no GPU composition).
+
+**Final (2026-10-25, all of the above, release):** 91–96 % of animation steps take one vsync, longest step 50 ms
+(the original build: 29–38 %, up to 217 ms); P50 22 ms, P90 27–38 ms; ~57 frames per run (was ~33).
