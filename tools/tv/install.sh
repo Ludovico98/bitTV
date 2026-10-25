@@ -17,6 +17,7 @@ act pm grant com.bittv.home android.permission.RECORD_AUDIO                     
 # The Home helper: Android 13+ only lets a sideloaded app's accessibility service run once "restricted settings" are
 # allowed for it (Settings → Apps → BitTV → ⋮ → Allow restricted settings, or the appops line below). Your call.
 echo "  To enable the Home helper:  adb -s $DEVICE shell cmd appops set com.bittv.home ACCESS_RESTRICTED_SETTINGS allow"
+echo "  then on the TV: Settings → Accessibility → BitTV Home button → On (on the TCL, setting it over adb is not enough)"
 CUR="$("${ADB[@]}" shell settings get secure enabled_accessibility_services </dev/null | tr -d '\r')"
 SVC=com.bittv.home/com.bittv.home.platform.HomeKeyService
 case "$CUR" in *"$SVC"*) NEW="$CUR";; null|"") NEW="$SVC";; *) NEW="$CUR:$SVC";; esac

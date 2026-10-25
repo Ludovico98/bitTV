@@ -54,3 +54,10 @@ sees it; BitTV answering in the active section needs the helper planned in plan 
 Found on the TV: browser `com.tcl.browser`; media player `com.tcl.ui_mediaCenter` (TCL Media Center: USB and network
 videos, music, pictures); HDMI inputs open in `com.tcl.tv` (Live Channels also claims them, hence the chooser before).
 The HDMI preview sends CEC routing when it connects, so BitTV previews only a device the TV reports as on.
+
+## The Home helper (2026-10-25)
+
+BitTV's `HomeKeyService` keeps BitTV as the home screen while Google's home stays enabled. On this TCL it only starts
+when switched on in the TV's own menu (Settings → Accessibility → BitTV Home button), after allowing restricted
+settings for BitTV (`cmd appops set com.bittv.home ACCESS_RESTRICTED_SETTINGS allow`). Writing the setting over adb
+lists it as enabled but the system never binds it. Verified: Home from TV Settings → BitTV.
