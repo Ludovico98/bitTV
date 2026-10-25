@@ -76,7 +76,7 @@ fun RemoteGuide(onClose: () -> Unit, modifier: Modifier = Modifier) {
             }
         }
         Spacer(Modifier.height(8.dp))
-        Text("Home, Mic and the app buttons work once BitTV is installed on the TV.", style = Type.Caption.copy(color = Ink3))
+        Text("Home and the app buttons work once BitTV is on the TV; the Mic needs the remote helper set up with it.", style = Type.Caption.copy(color = Ink3))
         Spacer(Modifier.height(14.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             PillButton("Close", onClose, Modifier.focusRequester(close).testTag("remote:close"))
