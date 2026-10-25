@@ -18,7 +18,7 @@
     --gap: 40px;         /* tvOS horizontal spacing between focusable items */
     --ink: #f4f6fa;
     --ink2: rgba(244, 246, 250, 0.62);
-    --ink3: rgba(244, 246, 250, 0.38);
+    --ink3: rgba(244, 246, 250, 0.6);   /* 38 % was ~3:1 on the background; 60 % reads at 10 ft */
     --glass: rgba(255, 255, 255, 0.055);
     --glassLine: rgba(255, 255, 255, 0.09);
     --glow: 0 0 0 4px #fff, 0 0 34px 6px rgba(255, 255, 255, 0.32), 0 24px 48px rgba(0, 0, 0, 0.55);
@@ -37,14 +37,17 @@
   svg { display: block; }
 
   /* ---------- ambient colour bleed ---------- */
+  /* two pre-built gradient layers cross-fade with opacity (compositor only), instead of repainting
+     a full-screen gradient every frame while its colours tween */
   #ambient {
     position: absolute; inset: 0;
-    transition: --a1 var(--dAmb) ease, --a2 var(--dAmb) ease;
     background:
-      radial-gradient(60% 70% at 18% 8%, var(--a1), transparent 72%),
-      radial-gradient(70% 70% at 92% 100%, var(--a2), transparent 70%),
+      radial-gradient(60% 70% at 18% 8%, rgba(90,120,255,.25), transparent 72%),
+      radial-gradient(70% 70% at 92% 100%, rgba(40,30,90,.8), transparent 70%),
       radial-gradient(120% 100% at 50% 50%, #0b0f18, #05070b);
   }
+  #ambient i { position: absolute; inset: 0; opacity: 0; transition: opacity var(--dAmb) ease; }
+  #ambient i.on { opacity: 1; }
 
   /* ---------- shared: app icon ---------- */
   .ico { display: grid; place-items: center; overflow: hidden; border-radius: 22%; color: #fff; line-height: 1; }
@@ -53,14 +56,13 @@
   .itvx { background: linear-gradient(90deg, #ff7a3d, #ff3d8b, #7b5cff); -webkit-background-clip: text; background-clip: text; color: transparent !important; }
 
   /* ---------- focusables ---------- */
-  .f { transition: transform var(--d) ease-out; will-change: transform; }
+  .f { transition: transform var(--d) ease-out; }   /* layers are created only while an item animates */
 
   /* ---------- rail ---------- */
   /* app bar: tvOS-shaped icons (landscape 5:3 rounded rectangles) in a floating glass column */
   #rail {
     position: absolute; left: var(--safeX); top: var(--safeY); bottom: var(--safeY); width: 194px;
-    background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12); border-radius: 44px;
-    backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
+    background: rgba(22,27,38,.62); border: 1px solid rgba(255,255,255,.12); border-radius: 44px;   /* no live blur: re-rendered every frame behind moving content */
     box-shadow: 0 30px 60px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08);
     z-index: 5;
   }
@@ -80,7 +82,7 @@
 
   /* ---------- main column ---------- */
   #main { position: absolute; left: 274px; top: 0; right: 0; bottom: 0; overflow: hidden; }
-  #mainTrack { position: relative; padding: var(--safeY) 0 240px 40px; will-change: transform; }   /* moved by pageSpring() */
+  #mainTrack { position: relative; padding: var(--safeY) 0 240px 64px; will-change: transform; }   /* moved by pageSpring() */
   .topbar { height: 72px; position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; padding-right: var(--safeX); }
   .shortcuts { display: flex; gap: 20px; }
   .sc {
@@ -98,13 +100,13 @@
   .clock svg { width: 40px; height: 40px; display: inline-block; vertical-align: -6px; }
   .wx { display: inline-flex; align-items: center; gap: 10px; }
   #miniClock {
-    position: absolute; right: var(--safeX); top: 40px; z-index: 6; font-size: 34px; font-weight: 600; font-variant-numeric: tabular-nums;
+    position: absolute; right: var(--safeX); top: var(--safeY); z-index: 6; font-size: 34px; font-weight: 600; font-variant-numeric: tabular-nums;
     padding: 8px 20px; border-radius: 16px; background: rgba(8,10,16,.6); opacity: 0; transition: opacity var(--d) ease;
   }
   #miniClock.show { opacity: 1; }
 
   .heroWrap { display: flex; gap: var(--gap); margin-top: 40px; height: 430px; padding-right: var(--safeX); }
-  #hero { position: relative; flex: none; width: 1000px; height: 430px; border-radius: 34px; }
+  #hero { position: relative; flex: none; width: 976px; height: 430px; border-radius: 34px; }
   #hero .slides { position: absolute; inset: 0; border-radius: 34px; overflow: hidden; box-shadow: 0 30px 60px rgba(0,0,0,.45); }
   #hero.focused { transform: scale(1.025); }
   #hero.focused .slides { box-shadow: var(--glow); }
@@ -174,9 +176,9 @@
   .as-timer i { display: block; height: 100%; background: rgba(255,255,255,.6); transform-origin: left; }
   .as-foot.counting .as-timer i { animation: astimer 30s linear forwards; }   /* starts once the answer has been read out */
   .as-foot .eq { display: flex; align-items: flex-end; gap: 4px; height: 22px; }
-  .as-foot .eq i { width: 4px; border-radius: 2px; background: #8fb8ff; animation: eqb .7s ease-in-out infinite alternate; }
+  .as-foot .eq i { width: 4px; height: 22px; border-radius: 2px; background: #8fb8ff; transform-origin: bottom; animation: eqb .7s ease-in-out infinite alternate; }
   .as-foot .eq i:nth-child(2) { animation-delay: .2s; } .as-foot .eq i:nth-child(3) { animation-delay: .4s; } .as-foot .eq i:nth-child(4) { animation-delay: .1s; }
-  @keyframes eqb { from { height: 5px; } to { height: 22px; } }
+  @keyframes eqb { from { transform: scaleY(.23); } to { transform: none; } }
   .as-foot.counting .eq { display: none; }
   @keyframes astimer { to { transform: scaleX(0); } }
   .as-time { font-size: 112px; font-weight: 600; letter-spacing: -.02em; margin-top: 30px; font-variant-numeric: tabular-nums; line-height: 1; }
@@ -228,7 +230,7 @@
   .row h2 { margin: 0 0 4px; font-size: 38px; font-weight: 600; letter-spacing: -.01em; }
   .row h2 span { font-size: 25px; color: var(--ink3); font-weight: 500; margin-left: 12px; }
   .win {
-    position: relative; margin-left: -24px; padding: 24px 0 54px 0;
+    position: relative; margin-left: -64px; padding: 24px 0 54px 40px;   /* 64 px of room for the focus glow */
     overflow-x: clip; overflow-y: visible;
   }
   .win::before {
@@ -274,7 +276,7 @@
   .tile.dev .cap { top: 328px; }
   .tile.dev canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
   .devlbl { position: absolute; left: 20px; bottom: 18px; z-index: 2; font-size: 25px; font-weight: 600; display: flex; gap: 12px; align-items: center; }
-  .live { font-size: 16px; font-weight: 800; letter-spacing: .1em; color: #fff; background: #e5322d; padding: 4px 10px; border-radius: 8px; }
+  .live { font-size: 23px; font-weight: 800; letter-spacing: .08em; color: #fff; background: #e5322d; padding: 0 10px; border-radius: 8px; }
   .muted { position: absolute; right: 18px; top: 16px; z-index: 2; width: 40px; height: 40px; border-radius: 50%; background: rgba(0,0,0,.45); display: grid; place-items: center; }
   .muted svg { width: 22px; height: 22px; }
   .standby { position: absolute; inset: 0; z-index: 3; display: none; place-items: center; text-align: center; background: radial-gradient(#141a26, #07090d); font-size: 26px; color: var(--ink2); }
@@ -443,7 +445,7 @@
 </head>
 <body>
 <div id="stage">
-  <div id="ambient"></div>
+  <div id="ambient"><i></i><i></i></div>
 
   <!-- HOME -->
   <section id="home" class="layer">
@@ -670,15 +672,24 @@ function applyAnim() {
   r.setProperty('--dScroll', S.anim ? '200ms' : '0ms');
   r.setProperty('--dAmb', S.anim ? '350ms' : '0ms');
   stage.classList.toggle('no-anim', !S.anim);
+  if (S.ready) { ps5Last = 0; ps5Sync(); }   // the preview loop is defined further down
 }
 applyAnim();
 
 /* ---------- ambient colour bleed ---------- */
-const amb = $('#ambient');
+let ambKey = '', ambFront = 0;
 function setAmbient(c1, c2) {
-  if (!S.ambient || !c1) { amb.style.removeProperty('--a1'); amb.style.removeProperty('--a2'); return; }
-  amb.style.setProperty('--a1', rgba(c2, 0.34));
-  amb.style.setProperty('--a2', mixA(c1, 0.18, 0.92));
+  const layers = $$('#ambient i');
+  if (!S.ambient || !c1) { layers.forEach((l) => l.classList.remove('on')); ambKey = ''; return; }
+  if (c1 + c2 === ambKey) return;
+  ambKey = c1 + c2;
+  ambFront ^= 1;
+  const next = layers[ambFront];
+  next.style.background = `radial-gradient(60% 70% at 18% 8%, ${rgba(c2, 0.34)}, transparent 72%),
+    radial-gradient(70% 70% at 92% 100%, ${mixA(c1, 0.18, 0.92)}, transparent 70%),
+    radial-gradient(120% 100% at 50% 50%, #0b0f18, #05070b)`;
+  next.classList.add('on');
+  layers[ambFront ^ 1].classList.remove('on');
 }
 
 /* ---------- poster art ---------- */
@@ -793,7 +804,7 @@ function ensureVisible(el) {
     y = !sec || sec.dataset.top || !first ? 0 : -(relTop(sec, vs) - relTop(first, vs));
     // a taller row (Devices) rises just enough to stay inside the bottom safe area
     if (sec && !sec.dataset.top) y = Math.min(y, 1080 - 60 - (relTop(sec, vs) + sec.offsetHeight));
-    $('#miniClock').classList.toggle('show', y < -120);
+    $('#miniClock').classList.toggle('show', y < -560);
     vs.dataset.y = y;
     pageSpring(vs, y);
     return;
@@ -824,6 +835,7 @@ function pushLayer(name, focusEl) {
   el.classList.add('in');
   if (name === 'search') LAYERS.home.classList.add('hidden');
   setFocus(focusEl || $('.f', el));
+  ps5Sync();
 }
 function back() {
   if (S.stack.length === 1) {   // Back on Home: return to the top
@@ -836,6 +848,7 @@ function back() {
   if (L.name === 'search') LAYERS.home.classList.remove('hidden');
   const p = L.prev;
   if (p && p.isConnected && topLayer().el.contains(p)) setFocus(p); else setFocus(defaultFocus());
+  ps5Sync();
 }
 const fx = (el, group, act) => { el.classList.add('f'); el.dataset.group = group; el._act = act; return el; };
 
@@ -888,10 +901,9 @@ async function loadWeather() {
       days: d.time.map((t, i) => ({ date: new Date(t), kind: wxKind(d.weather_code[i]), hi: Math.round(d.temperature_2m_max[i]), lo: Math.round(d.temperature_2m_min[i]) })),
     };
   } catch (e) {
-    const day = (n) => new Date(Date.now() + n * 864e5);
-    weather = { temp: 12, kind: 'cloud', days: [['cloud', 13, 7], ['rain', 12, 6], ['sun', 14, 5], ['cloud', 11, 6]].map(([kind, hi, lo], i) => ({ date: day(i), kind, hi, lo })) };
+    weather = { temp: null, kind: null, days: null, offline: true };   // shown as unavailable, never made up
   }
-  weather.icon = I[weather.kind];
+  weather.icon = weather.kind ? I[weather.kind] : '';
   tickClock();
 }
 
@@ -1043,14 +1055,26 @@ function buildDevices(track, group) {
     <div class="standby"><div>${I.power}PlayStation 5 is in standby</div></div></div>
     <div class="cap"><b>PlayStation 5</b><span>Select to switch input</span></div>`;
   ps5Canvas = $('canvas', el);
+  ps5IO.disconnect(); ps5IO.observe(ps5Canvas);
   const hd = fx(h('div', 'tile hdmi'), group, () => toast('Nothing is connected to HDMI 2'));
   hd.innerHTML = `<div class="art"><div>${I.hdmi}HDMI 2<br><span style="font-size:23px;color:var(--ink3)">No signal</span></div></div><div class="cap"><b>HDMI 2</b><span>No signal</span></div>`;
   track.append(el, hd);
 }
 const GAMES = ['Astro’s Playroom', 'Gran Turismo 7', 'EA Sports FC', 'Spider-Man 2', 'Returnal', 'Ratchet & Clank'];
 const GAMECOL = ['#3aa0ff', '#d6362e', '#25c26e', '#c3122f', '#7b4dff', '#ff9f1a'];
+// the live preview runs only while its tile is on screen, Home is the top page and the PS5 is on (30 fps)
+let ps5Visible = false, ps5Raf = 0, ps5Last = 0;
+const ps5IO = new IntersectionObserver((es) => { ps5Visible = es[es.length - 1].isIntersecting; ps5Sync(); });
+const ps5ShouldRun = () => ps5Canvas && S.ps5 && ps5Visible && topLayer().name === 'home';
+function ps5Tick(now) {
+  ps5Raf = 0;
+  if (!ps5ShouldRun()) return;
+  if (now - ps5Last >= 33) { ps5Last = now; drawPS5(now / 1000); }
+  if (S.anim) ps5Raf = requestAnimationFrame(ps5Tick);
+}
+function ps5Sync() { if (ps5ShouldRun() && !ps5Raf) ps5Raf = requestAnimationFrame(ps5Tick); }
 function drawPS5(t) {
-  if (!ps5Canvas || !S.ps5 || LAYERS.home.classList.contains('hidden') || !inView(ps5Canvas)) return;
+  if (!ps5Canvas) return;
   const c = ps5Canvas.getContext('2d'), w = 560, hh = 315;
   const g = c.createLinearGradient(0, 0, w, hh); g.addColorStop(0, '#04102e'); g.addColorStop(1, '#0b3a8c');
   c.fillStyle = g; c.fillRect(0, 0, w, hh);
@@ -1078,7 +1102,7 @@ function togglePS5() {
   if (!el) return;
   el.classList.toggle('off', !S.ps5);
   el.classList.remove('wake'); void el.offsetWidth;
-  if (S.ps5) { el.classList.add('wake'); toast('PlayStation 5 is on — live preview on Home'); }
+  if (S.ps5) { el.classList.add('wake'); toast('PlayStation 5 is on — live preview on Home'); ps5Sync(); }
   else toast('PlayStation 5 went to standby');
 }
 
@@ -1139,7 +1163,7 @@ function micStart(mode) {
     while (S.stack.length > 1) back();
     openSearch();
   }
-  S.listening = true; S.voice = ''; S.voiceErr = null; S.micMode = mode; S.holding = mode === 'hold'; S.recEnded = false;
+  S.listening = true; S.transcript = ''; S.qBefore = S.q; S.voiceErr = null; S.micMode = mode; S.holding = mode === 'hold'; S.recEnded = false;
   LAYERS.search.classList.add('listening');
   $('#sIcon').innerHTML = I.mic;
   $('#sq').textContent = '';
@@ -1151,8 +1175,8 @@ function micStart(mode) {
       rec = new SR();
       rec.lang = 'en-GB'; rec.interimResults = true; rec.continuous = mode === 'hold';
       rec.onresult = (e) => {
-        S.voice = [...e.results].map((r) => r[0].transcript).join('');
-        $('#sq').textContent = S.voice; $('#sph').classList.add('hidden');
+        S.transcript = [...e.results].map((r) => r[0].transcript).join('');
+        $('#sq').textContent = S.transcript; $('#sph').classList.add('hidden');
       };
       rec.onerror = (e) => { S.voiceErr = e.error; };
       // while the button is still held, keep listening on screen until it is released
@@ -1168,12 +1192,22 @@ function micStop() {
   if (rec && !S.recEnded) { try { rec.stop(); } catch (e) { micFinish(); } }
   else micFinish();
 }
+// Back while listening: stop the recogniser and put the previous query back, without searching
+function micCancel() {
+  if (!S.listening) return;
+  S.listening = false; S.holding = false;
+  if (rec) { try { rec.abort(); } catch (e) { /* already stopped */ } }
+  LAYERS.search.classList.remove('listening');
+  $('#sIcon').innerHTML = I.search;
+  S.q = S.qBefore || '';
+  renderSearch();
+}
 function micFinish() {
   if (!S.listening) return;
   S.listening = false;
   LAYERS.search.classList.remove('listening');
   $('#sIcon').innerHTML = I.search;
-  let text = S.voice.trim();
+  let text = S.transcript.trim();
   if (!text) {
     // speech unavailable here (file://, no mic permission, no network): fake a phrase so the flow can be judged
     text = DEMO_VOICE[demoIdx++ % DEMO_VOICE.length];
@@ -1285,7 +1319,7 @@ function renderSettings(keepIdx) {
   const exp = [
     ['Ambient colour bleed', `<i class="sw${S.ambient ? ' on' : ''}"></i>`, () => { S.ambient = !S.ambient; store.set('ambient', S.ambient); setAmbient(); }],
     ['Animations', `<i class="sw${S.anim ? ' on' : ''}"></i>`, () => { S.anim = !S.anim; store.set('anim', S.anim); applyAnim(); }],
-    ['Overscan guides', `<i class="sw${$('#guides').classList.contains('hidden') ? '' : ' on'}"></i>`, () => $('#guides').classList.toggle('hidden')],
+    ['Overscan guides', `<i class="sw${$('#guides').classList.contains('hidden') ? '' : ' on'}"></i>`, toggleGuides],
     ['PlayStation 5 power (simulate)', `<i class="sw${S.ps5 ? ' on' : ''}"></i>`, togglePS5],
     ['Replay boot animation', '<span class="val">Play</span>', () => { back(); playBoot(); }],
     ['Reset Watch Later', '<span class="val">Reset</span>', () => { S.wl = []; store.set('wl', S.wl); rebuildHome(); toast('Watch Later cleared'); }],
@@ -1294,8 +1328,8 @@ function renderSettings(keepIdx) {
   const as = [
     ['Voice', `<span class="val">${cur ? esc(voiceLabel(cur)) : 'Device default'}</span>`, () => {
       if (!vs.length) { toast('No voices are installed in this browser. The TV uses its own Google voices'); return; }
-      const next = vs[(vs.indexOf(cur) + 1) % vs.length];
-      S.voice = next.name; store.set('voice', S.voice);
+      const next = vs[(vs.findIndex((v) => cur && v.name === cur.name) + 1) % vs.length];
+      store.set('voice', next.name);
       Assist.sample();
     }, 'span2'],
     ['Hear a sample', '<span class="val">Play</span>', () => Assist.sample()],
@@ -1318,7 +1352,7 @@ function launch(a, line) {
     sp.innerHTML = `<div class="bgc" style="background:linear-gradient(160deg,#1e2a3a,#0b0f18)"></div><div class="spl">
       <h1>${a.name} isn’t installed</h1><p></p><div class="dbtns" id="splBtns"></div></div>`;
     const inst = fx(h('div', 'btn', `Install ${a.name}`), 'spl', () => {
-      a.inst = true; buildRail(); back(); toast(`${a.name} installed`);
+      a.inst = true; buildRail(); back(); setFocus($$('#railTrack .app').find((x) => x._app === a)); toast(`${a.name} installed`);
     });
     $('#splBtns', sp).append(inst, fx(h('div', 'btn', I.back + 'Back'), 'spl', back));
     pushLayer('splash', inst);
@@ -1347,7 +1381,10 @@ function pickVoice() {
 }
 const voiceLabel = (v) => `${v.name.replace(/^(Google|Microsoft)\s+/, '')} · ${v.lang}`;
 if (window.speechSynthesis) speechSynthesis.addEventListener('voiceschanged', () => {
-  if (S.stack.some((L) => L.name === 'settings')) renderSettings(true);   // voices arrive asynchronously
+  if (!S.stack.some((L) => L.name === 'settings')) return;   // voices arrive asynchronously
+  const i = $$('#scard .opt').indexOf(S.focus);
+  if (i >= 0) S.lastSetIdx = i;
+  renderSettings(true);
 });
 const esc = (t) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const Assist = (() => {
@@ -1364,13 +1401,26 @@ const Assist = (() => {
   const dots = '<span class="gdots"><i></i><i></i><i></i><i></i></span>';
   let rec = null, demo = 0, timer = 0, holding = false, ended = false, text = '', gen = 0;
   const A = { listening: false };
-  const show = (html) => { $('#panel').classList.add('assisting'); $('#assist').innerHTML = html; };
+  const show = (html) => {
+    $('#panel').classList.add('assisting');
+    $('#assist').innerHTML = html;
+    // Spotify/news controls are now hidden: keep focus on something visible
+    if (S.focus && $('#panel').contains(S.focus) && S.focus !== $('#assist')) setFocus($('#assist'));
+  };
+  A.showing = () => $('#panel').classList.contains('assisting');
+  A.cancel = () => {   // Back while listening: no answer
+    if (!A.listening) return;
+    A.listening = false; holding = false;
+    if (rec) { try { rec.abort(); } catch (e) { /* already stopped */ } }
+    A.dismiss();
+  };
 
   A.start = () => {
     if (A.listening || S.booting) return;
     while (S.stack.length > 1) back();          // answers live on Home, like the system overlay would
     clearTimeout(timer); gen++;
     if (window.speechSynthesis) speechSynthesis.cancel();
+    if (rec) { try { rec.abort(); } catch (e) { /* already stopped */ } }   // a late result must not leak into this session
     A.listening = true; holding = true; ended = false; text = '';
     show(`<div class="as-head listening">${dots}<span>Google Assistant</span></div>
       <div class="as-big" id="asQ">Hi, how can I help?</div><div class="as-sub">Listening… let go of the mic when you’re done</div>`);
@@ -1450,7 +1500,9 @@ const Assist = (() => {
     return new Promise((resolve) => {
       let done = false;
       const end = () => { if (!done) { done = true; resolve(); } };
-      setTimeout(end, est + 2500);
+      // safety net for engines that never fire onend, but never cut a voice that is still talking
+      const safety = () => (window.speechSynthesis && speechSynthesis.speaking ? setTimeout(safety, 500) : end());
+      setTimeout(safety, est + 2500);
       if (!window.speechSynthesis) { setTimeout(end, est); return; }
       speechSynthesis.cancel();
       try {
@@ -1484,6 +1536,10 @@ const Assist = (() => {
   }
 
   function weatherCard(q, force) {
+    if (weather.offline || weather.temp == null) {
+      return { html: '<div class="as-big">Weather is unavailable right now.</div><div class="as-sub">Check the internet connection and ask again.</div>',
+        say: 'Sorry, I can’t get the weather right now.' };
+    }
     const tmr = /tomorrow/i.test(q) && weather.days ? weather.days[1] : null;
     const kind = force || (tmr ? tmr.kind : weather.kind);
     const drops = Array.from({ length: 14 }, (_, i) => `<i class="drop" style="left:${8 + i * 6}%;animation-delay:${(i * 0.13) % 0.9}s"></i>`).join('');
@@ -1541,6 +1597,9 @@ const Assist = (() => {
   return A;
 })();
 
+function toggleGuides() { store.set('guides', !$('#guides').classList.toggle('hidden')); }
+$('#guides').classList.toggle('hidden', !store.get('guides', false));
+
 /* ---------- toast + hints ---------- */
 let toastT = 0;
 function toast(msg) {
@@ -1558,6 +1617,7 @@ addEventListener('keydown', (e) => {
   if (e.key !== 'Shift') { clearTimeout(micTimer); return; }
   if (!e.repeat && !S.booting) micTimer = setTimeout(() => Assist.start(), 250);
 }, true);
+addEventListener('blur', () => { clearTimeout(micTimer); if (Assist.listening) Assist.stop(); });   // Shift released elsewhere
 addEventListener('keyup', (e) => {
   if (e.key !== 'Shift') return;
   clearTimeout(micTimer);
@@ -1566,25 +1626,28 @@ addEventListener('keyup', (e) => {
 addEventListener('keydown', (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey || e.key === 'Shift') return;
   if (S.booting) { e.preventDefault(); finishBoot(); return; }
-  if (S.listening) { e.preventDefault(); if (e.key === 'Escape') micStop(); return; }
-  if (Assist.listening) { e.preventDefault(); return; }
+  const isBack = (x) => x === 'Escape' || x === 'Backspace' || x === 'BrowserBack' || x === 'GoBack';
+  if (S.listening) { e.preventDefault(); if (isBack(e.key)) micCancel(); return; }
+  if (Assist.listening) { e.preventDefault(); if (isBack(e.key)) Assist.cancel(); return; }
   const k = e.key, top = topLayer().name;
   stage.classList.add('mouse-off');
   if (k.startsWith('Arrow')) { e.preventDefault(); move(k.slice(5).toLowerCase()); return; }
   if (k === 'Enter' || (k === ' ' && top !== 'search')) {
     e.preventDefault();
+    if (e.repeat) return;   // a held OK button repeats; it must not open page after page
     if (top === 'settings' && S.focus) S.lastSetIdx = $$('#scard .opt').indexOf(S.focus);
     activate(); return;
   }
   if (k === 'Escape' || k === 'Backspace' || k === 'BrowserBack' || k === 'GoBack') {
     e.preventDefault();
     if (top === 'search' && k === 'Backspace' && S.q) { typeKey('⌫'); return; }
+    if (top === 'home' && Assist.showing()) { Assist.dismiss(); return; }   // an answer closes before anything else
     back(); return;
   }
   if (top === 'search' && k.length === 1 && /[a-z0-9 '.-]/i.test(k)) { e.preventDefault(); typeKey(k.toLowerCase()); return; }
   const lk = k.toLowerCase();
   if (k === '/') { e.preventDefault(); if (top !== 'search') openSearch(); }
-  else if (lk === 'g') $('#guides').classList.toggle('hidden');
+  else if (lk === 'g') toggleGuides();
   else if (lk === 'p') togglePS5();
   else if (lk === 'h') { clearTimeout(hintsT); $('#hints').classList.toggle('gone'); }
   else if (lk === 'w' && S.focus && S.focus._t) toggleWL(S.focus._t);
@@ -1781,8 +1844,11 @@ S.stack.push({ name: 'home', el: LAYERS.home, prev: null });
 buildRail(); buildTop(); buildPanel(); buildHero(); buildRows(); buildKbd();
 tickClock(); loadWeather();
 setFocus($('#hero'));
+let todayKey = new Date().toDateString();
 setInterval(() => {
   tickClock();
+  const k = new Date().toDateString();
+  if (k !== todayKey) { todayKey = k; renderToday(); }   // a launcher runs for days: date-based info follows the date
   if (S.sp.playing) {
     S.sp.pos += 1;
     if (S.sp.pos >= TRACKS[S.sp.i].len) { S.sp.i = (S.sp.i + 1) % TRACKS.length; S.sp.pos = 0; }
@@ -1790,7 +1856,9 @@ setInterval(() => {
   }
 }, 1000);
 setInterval(() => { newsIdx = (newsIdx + 1) % NEWS.length; renderNews(); }, 9000);
-(function loop(now) { drawPS5(now / 1000); requestAnimationFrame(loop); })(0);
+setInterval(loadWeather, 30 * 60 * 1000);
+S.ready = true;
+ps5Sync();
 if (location.hash === '#noboot') finishBoot(); else playBoot();
 })();
 </script>
