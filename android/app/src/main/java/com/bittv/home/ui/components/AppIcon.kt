@@ -6,6 +6,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,9 +39,19 @@ import com.bittv.home.ui.theme.Bebas
 import com.bittv.home.ui.theme.Inter
 import com.bittv.home.ui.theme.Playfair
 
-/** Brand-coloured tvOS-shaped app tile (landscape rounded rectangle), drawn rather than shipped as bitmaps. */
+/** The apps' own TV banners, read from the installed apps (id → banner); empty on the demo and in tests. */
+val LocalAppArt = staticCompositionLocalOf<Map<String, ImageBitmap>> { emptyMap() }
+
+/**
+ * tvOS-shaped app tile (landscape rounded rectangle). With [art] it shows the app's own TV banner; otherwise a
+ * drawn brand look (the demo, apps without a banner, and SmartTube, which keeps the YouTube mark).
+ */
 @Composable
-fun AppIcon(app: AppEntry, width: Dp, height: Dp, modifier: Modifier = Modifier, radius: Dp = 10.dp) {
+fun AppIcon(app: AppEntry, width: Dp, height: Dp, modifier: Modifier = Modifier, radius: Dp = 10.dp, art: ImageBitmap? = null) {
+    if (art != null) {
+        Image(art, app.label, modifier.size(width, height).clip(RoundedCornerShape(radius)), contentScale = ContentScale.Crop)
+        return
+    }
     val look = looks[app.id] ?: Look(Brush.linearGradient(listOf(Color(0xFF263238), Color(0xFF263238))))
     Box(
         modifier.size(width, height).clip(RoundedCornerShape(radius)).background(look.bg),

@@ -43,6 +43,10 @@ import androidx.compose.ui.zIndex
 import androidx.tv.material3.Text
 import com.bittv.home.model.NewsItem
 import com.bittv.home.model.NowPlaying
+import coil3.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.runtime.produceState
+import kotlinx.coroutines.delay
 import com.bittv.home.today.TodayItem
 import com.bittv.home.today.TodayKind
 import com.bittv.home.ui.components.LocalMotion
@@ -104,7 +108,8 @@ private fun Divider() = Box(Modifier.padding(vertical = 6.dp).fillMaxWidth().hei
 private fun NowPlayingBlock(np: NowPlaying?, actions: HomeActions, playRequester: FocusRequester) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(42.dp).clip(RoundedCornerShape(7.dp)).background(Brush.linearGradient(listOf(Color(0xFF2B1055), Color.Black)))) {
-            Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0xFFFF5FA2), Color.Transparent), Offset(30f, 10f), 70f)))
+            if (np?.art != null) AsyncImage(np.art, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)   // the real cover
+            else Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0xFFFF5FA2), Color.Transparent), Offset(30f, 10f), 70f)))
         }
         Spacer(Modifier.width(9.dp))
         Column {
@@ -121,11 +126,15 @@ private fun NowPlayingBlock(np: NowPlaying?, actions: HomeActions, playRequester
         CircleButton(Glyph.PREV, "prev") { actions.spotify("prev") }
         CircleButton(if (np?.playing == true) Glyph.PAUSE else Glyph.PLAY, "play", Modifier.focusRequester(playRequester)) { actions.spotify("toggle") }
         CircleButton(Glyph.NEXT, "next") { actions.spotify("next") }
-        val frac = if (np == null || np.durationSec == 0) 0f else np.positionSec.toFloat() / np.durationSec
+        // the position ticks here, once a second while playing, so only this block redraws (not Home)
+        val pos by produceState(np?.positionSec ?: 0, np) {
+            while (np?.playing == true) { delay(1000); value = (value + 1).let { if (np.durationSec > 0) it.coerceAtMost(np.durationSec) else it } }
+        }
+        val frac = if (np == null || np.durationSec == 0) 0f else pos.toFloat() / np.durationSec
         Box(Modifier.height(3.dp).width(80.dp).clip(RoundedCornerShape(2.dp)).background(Color(0x2EFFFFFF))) {
             Box(Modifier.fillMaxSize().graphicsLayer { scaleX = frac; transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f) }.background(Color.White))
         }
-        val left = (np?.durationSec ?: 0) - (np?.positionSec ?: 0)
+        val left = ((np?.durationSec ?: 0) - pos).coerceAtLeast(0)
         Text("-${left / 60}:${(left % 60).toString().padStart(2, '0')}", style = Type.Caption.copy(color = Ink2))
     }
 }

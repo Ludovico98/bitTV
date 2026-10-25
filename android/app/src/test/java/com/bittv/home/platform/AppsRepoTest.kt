@@ -41,6 +41,11 @@ class AppsRepoTest {
         assertEquals(emptySet<String>(), repo.installed(listOf(app)))
     }
 
+    @Test fun yourServicesAreTheInstalledApps() {
+        val ids = setOf("netflix", "spotify", "tubi", "playstore")
+        assertEquals(setOf(com.bittv.home.model.Svc.NETFLIX, com.bittv.home.model.Svc.TUBI), AppsRepo.services(DemoCatalog.apps, ids))
+    }
+
     @Test fun packagesOnLudovicosTv() {
         // read from the TV on 2026-10-25 (pm list packages)
         val tv = setOf("air.ITVMobilePlayer", "com.amazon.amazonvideo.livingroom", "com.android.vending", "com.apple.atve.androidtv.appletv",

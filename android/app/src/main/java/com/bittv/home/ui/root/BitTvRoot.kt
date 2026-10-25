@@ -39,6 +39,19 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.bittv.home.AppGraph
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import com.bittv.home.data.AppOrder
+import com.bittv.home.platform.AppsRepo
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import com.bittv.home.ui.components.LocalAppArt
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.withContext
 import android.content.Intent
 import androidx.compose.ui.platform.LocalContext
 import com.bittv.home.data.CatalogRepo
@@ -83,7 +96,8 @@ sealed interface Screen {
 fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, demoCatalog: Boolean = false) {
     val prefs by graph.prefs.prefs.collectAsStateWithLifecycle(initialValue = Prefs())
     val scope = rememberCoroutineScope()
-    val apps = graph.apps
+    // the app bar in his order (hold OK on an app to move it)
+    val apps = remember(prefs.appOrder) { AppOrder.ordered(graph.apps, prefs.appOrder) }
     val context = LocalContext.current
     // the TV's real apps; tests (demo catalogue) keep the stand-in set and screens
     var installed by remember { mutableStateOf(if (demoCatalog) apps.map { it.id }.toSet() - "paramount" else graph.appsRepo.installed(apps)) }
@@ -92,17 +106,39 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
     val catalog = if (demoCatalog) CatalogRepo.State(DemoCatalog.titles, DemoCatalog.progress, CatalogRepo.Source.DEMO) else live
     // the catalogue refreshes while Home is in front (CatalogRepo skips it when its copy is under 12 h old)
     val lifecycle = LocalLifecycleOwner.current.lifecycle
+    // his services are the installed apps' (the demo keeps its own list)
+    val effective = remember(prefs, installed) { if (demoCatalog) prefs else prefs.copy(subs = AppsRepo.services(apps, installed)) }
+    val nowPlaying by graph.nowPlaying.state.collectAsStateWithLifecycle()
+    // Speak in Search: the real speech service; the first time, Android asks to allow the microphone
+    val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+    val listen: suspend () -> String? = remember {
+        suspend {
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                micPermission.launch(Manifest.permission.RECORD_AUDIO); null
+            } else graph.speech.listen {}
+        }
+    }
+    var appArt by remember { mutableStateOf<Map<String, ImageBitmap>>(emptyMap()) }
+    var devices by remember { mutableStateOf<List<com.bittv.home.platform.ExternalDevice>>(emptyList()) }
     LaunchedEffect(demoCatalog) {
         if (!demoCatalog) lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             installed = graph.appsRepo.installed(apps)   // an app installed or removed while away shows at once
-            graph.catalog.refresh()
+            // the apps' own TV banners for the app bar (SmartTube keeps the YouTube mark)
+            appArt = withContext(Dispatchers.IO) {
+                apps.filter { it.id != "smarttube" && it.id in installed }
+                    .mapNotNull { a -> graph.appsRepo.banner(a)?.let { a.id to it.asImageBitmap() } }.toMap()
+            }
+            graph.nowPlaying.start()   // what's playing, live, while Home is in front
+            devices = graph.tvInputs.devices()   // and what is plugged in (the PS5), kept current while Home shows
+            graph.tvInputs.watch { devices = graph.tvInputs.devices() }
+            try { graph.catalog.refresh(); awaitCancellation() } finally { graph.nowPlaying.stop(); graph.tvInputs.stop() }
         }
     }
     // first real catalogue: the demo's Watch Later picks become real titles (read from storage, never the default)
     LaunchedEffect(catalog.source) {
         if (catalog.source != CatalogRepo.Source.TMDB) return@LaunchedEffect
         val saved = graph.prefs.prefs.first()
-        WatchLaterSeed.replaceDemo(saved.watchLater, catalog.titles, saved.subs)?.let { graph.prefs.setWatchLater(it) }
+        WatchLaterSeed.replaceDemo(saved.watchLater, catalog.titles, AppsRepo.services(apps, installed))?.let { graph.prefs.setWatchLater(it) }
     }
     val stack = remember { mutableStateListOf<Screen>(Screen.Home) }
     var returnToken by remember { mutableIntStateOf(0) }
@@ -152,6 +188,16 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
             override fun openSearch() { searchQuery = ""; push(Screen.Search) }
             override fun openSettings() = push(Screen.Settings)
             override fun toggleWatchLater(t: Title) { scope.launch { graph.prefs.toggleWatchLater(t.id) } }
+            override fun reorderApps(ids: List<String>) { scope.launch { graph.prefs.setAppOrder(ids) } }
+            override fun openInput(inputId: String) {
+                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, android.media.tv.TvContract.buildChannelUriForPassthroughInput(inputId))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+            }
+            // the card's buttons drive the session shown; with nothing to control, play opens Spotify
+            override fun spotify(command: String) {
+                if (demoCatalog) return
+                if (!graph.nowPlaying.command(command) && command == "toggle") apps.firstOrNull { it.id == "spotify" }?.let(::openApp)
+            }
         }
     }
 
@@ -160,7 +206,7 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
     val overlay: (@Composable () -> Unit)? = remember(assistantState) {
         if (assistantState == AssistantState.Idle) null else { { AssistantArea(assistantState, onDismiss = dismiss) } }
     }
-    CompositionLocalProvider(LocalMotion provides motion) {
+    CompositionLocalProvider(LocalMotion provides motion, LocalAppArt provides appArt) {
         // while the boot animation plays, any key skips it
         Box(Modifier.fillMaxSize().onPreviewKeyEvent { e ->
             when {
@@ -178,11 +224,11 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
             Box(if (top != Screen.Home) Modifier.focusProperties { onEnter = { cancelFocusChange() } }.focusGroup() else Modifier) {
                 HomeScreen(
                     HomeState(
-                        prefs = prefs, titles = catalog.titles, progress = catalog.progress, apps = apps,
+                        prefs = effective, titles = catalog.titles, progress = catalog.progress, apps = apps,
                         installed = installed, today = TodayInfo.items(LocalDate.now()),
-                        nowPlaying = NowPlaying("Midnight Drive", "Neon Coast", 214, 83, true),
+                        nowPlaying = if (demoCatalog) NowPlaying("Midnight Drive", "Neon Coast", 214, 83, true) else nowPlaying,
                         news = listOf(NewsItem("Space mission returns safely after 200 days in orbit", "BBC News · 12 min ago")),
-                        weather = null, castDevices = DemoCatalog.castDevices,
+                        weather = null, castDevices = DemoCatalog.castDevices, devices = if (demoCatalog) null else devices,
                     ),
                     actions, active = top == Screen.Home, returnToken = returnToken, topToken = topToken,
                     assistantOverlay = overlay,
@@ -190,9 +236,11 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
             }
             when (top) {
                 Screen.Home -> {}
-                Screen.Search -> SearchScreen(catalog.titles, prefs.subs, apps, onOpen = { push(Screen.Details(it)) }, onBack = ::pop,
+                Screen.Search -> if (demoCatalog) SearchScreen(catalog.titles, effective.subs, apps, onOpen = { push(Screen.Details(it)) }, onBack = ::pop,
                     query = searchQuery, onQueryChange = { searchQuery = it })
-                is Screen.Details -> DetailsScreen(top.title, prefs, catalog.progress.firstOrNull { it.titleId == top.title.id }, apps,
+                else SearchScreen(catalog.titles, effective.subs, apps, onOpen = { push(Screen.Details(it)) }, onBack = ::pop, listen = listen,
+                    query = searchQuery, onQueryChange = { searchQuery = it })
+                is Screen.Details -> DetailsScreen(top.title, effective, catalog.progress.firstOrNull { it.titleId == top.title.id }, apps,
                     onPlay = { play(top.title, it) }, onToggleWatchLater = { actions.toggleWatchLater(top.title) }, onBack = ::pop)
                 is Screen.NotInstalled -> NotInstalledScreen(top.app, onInstall = {
                     if (demoCatalog) installed = installed + top.app.id else graph.appsRepo.openStore(top.app)

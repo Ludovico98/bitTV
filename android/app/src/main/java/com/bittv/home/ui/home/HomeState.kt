@@ -28,6 +28,8 @@ data class HomeState(
     val castDevices: List<CastDevice> = emptyList(),
     /** The name phones see for this TV. */
     val tvName: String = "Living Room TV",
+    /** Devices plugged into the TV; null on the demo (stand-in tiles), empty when nothing is connected. */
+    val devices: List<com.bittv.home.platform.ExternalDevice>? = null,
 )
 
 interface HomeActions {
@@ -39,6 +41,10 @@ interface HomeActions {
     fun cast() {}
     fun spotify(command: String) {}
     fun openNews() {}
+    /** The app bar was rearranged: the new order of app ids. */
+    fun reorderApps(ids: List<String>) {}
+    /** Switch the TV to this HDMI input, full screen. */
+    fun openInput(inputId: String) {}
 }
 
 /** One cell of a row: a title (with optional progress) or the PS5 / HDMI tiles in Devices. */
@@ -47,7 +53,8 @@ sealed interface RowItem {
     data class Show(val title: Title, val progress: Float? = null, val caption: String? = null, val star: Boolean = false) : RowItem {
         override val key get() = title.id
     }
-    data class Device(override val key: String, val label: String, val live: Boolean) : RowItem
+    /** An HDMI device tile; [inputId] is the real input (null: the demo's stand-in). */
+    data class Device(override val key: String, val label: String, val live: Boolean, val inputId: String? = null) : RowItem
 }
 
 data class HomeRow(val key: String, val title: String, val note: String? = null, val items: List<RowItem>, val empty: String? = null)
@@ -67,7 +74,9 @@ fun homeRows(s: HomeState): List<HomeRow> {
         HomeRow("cw", "Continue Watching", items = s.progress.mapNotNull { p ->
             byId[p.titleId]?.takeIf { it.isAvailable(subs) }?.let { RowItem.Show(it, p.fraction, p.label, it.id in s.prefs.watchLater) }
         }),
-        HomeRow("dev", "Devices", items = listOf(RowItem.Device("ps5", "PlayStation 5 · HDMI 1", live = true), RowItem.Device("hdmi2", "HDMI 2", live = false))),
+        // real devices when known (none → no row); the demo's stand-ins otherwise
+        HomeRow("dev", "Devices", items = s.devices?.map { RowItem.Device(it.inputId, listOfNotNull(it.label, it.port).joinToString(" · "), live = true, inputId = it.inputId) }
+            ?: listOf(RowItem.Device("ps5", "PlayStation 5 · HDMI 1", live = true), RowItem.Device("hdmi2", "HDMI 2", live = false))),
         HomeRow("sug", "Suggested for you", note = "only from your apps",
             items = shows(pool.filter { it.id !in cwIds }.sortedByDescending { it.score }.take(12))),
         HomeRow("series", "Series", items = shows(pool.filter { it.type == TitleType.SERIES })),

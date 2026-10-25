@@ -63,21 +63,10 @@ fun SettingsScreen(
                 .padding(horizontal = 16.dp, vertical = 22.dp),
         ) {
             Text("Settings", style = Type.Title.copy(fontSize = 22.sp))
-            Text("Only titles from apps switched on here appear in Suggested, the banner and Search.", style = Type.Caption)
-            Section("Your apps & subscriptions")
-            Svc.entries.chunked(5).forEachIndexed { r, chunk ->
-                Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.padding(bottom = 7.dp)) {
-                    chunk.forEachIndexed { i, s ->
-                        OptionRow(s.label, Modifier.width(148.dp).testTag("opt:${s.name.lowercase()}")
-                            .then(if (r == 0 && i == 0) Modifier.focusRequester(first) else Modifier),
-                            checked = s in prefs.subs, onClick = { scope.launch { repo.toggleSub(s) } },
-                            leading = { apps.firstOrNull { it.svc == s }?.let { AppIcon(it, 22.dp, 22.dp, radius = 5.5.dp) } })
-                    }
-                }
-            }
+            Text("Suggested, the banner and Search show titles from the apps installed on this TV.", style = Type.Caption)
             Section("Google Assistant")
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                OptionRow("Voice", Modifier.width(509.dp).testTag("opt:voice"), value = prefs.voice ?: "Device default", onClick = {
+                OptionRow("Voice", Modifier.width(509.dp).testTag("opt:voice").focusRequester(first), value = prefs.voice ?: "Device default", onClick = {
                     if (voices.isNotEmpty()) {
                         val next = voices[(voices.indexOf(prefs.voice) + 1) % voices.size]
                         scope.launch { repo.setVoice(next) }
@@ -88,8 +77,6 @@ fun SettingsScreen(
             }
             Section("Experience")
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.padding(bottom = 7.dp)) {
-                OptionRow("Ambient colour bleed", Modifier.width(251.dp).testTag("opt:ambient"), checked = prefs.ambient,
-                    onClick = { scope.launch { repo.setAmbient(!prefs.ambient) } })
                 OptionRow("Animations", Modifier.width(251.dp).testTag("opt:animations"), checked = prefs.animations,
                     onClick = { scope.launch { repo.setAnimations(!prefs.animations) } })
                 OptionRow("Overscan guides", Modifier.width(251.dp).testTag("opt:guides"), checked = prefs.overscanGuides,

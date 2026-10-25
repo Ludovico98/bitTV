@@ -65,7 +65,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.tv.material3.Text
 import com.bittv.home.model.Title
-import com.bittv.home.ui.components.AmbientBackground
+import com.bittv.home.ui.components.HomeBackground
 import com.bittv.home.ui.components.LocalMotion
 import com.bittv.home.ui.theme.Type
 import kotlinx.coroutines.delay
@@ -112,7 +112,6 @@ fun HomeScreen(
     val rows = remember(state) { homeRows(state) }
     val banner = remember(state.titles, state.prefs.subs) { bannerTitles(state) }
     var bannerIndex by remember { mutableIntStateOf(0) }
-    var ambient by remember { mutableStateOf<Pair<Color, Color>?>(null) }
     var focusedSection by remember { mutableStateOf("hero") }
     var clock by remember { mutableStateOf(now()) }
     val heroRequester = remember { FocusRequester() }
@@ -153,17 +152,16 @@ fun HomeScreen(
     val pageSpec = remember(density, motion) { PageBringIntoView(density, motion) }
     pageSpec.firstRowKey = rows.firstOrNull()?.key
 
-    val showAmbient = state.prefs.ambient
     // a press that arrives before anything on Home was focused (e.g. Down held while BitTV appears) places focus on
     // the banner first, like tvOS
     Box(modifier.fillMaxSize().onPreviewKeyEvent { e ->
         if (!contentFocused && e.type == KeyEventType.KeyDown) heroRequester.requestFocus() else false
     }) {
-        AmbientBackground({ if (showAmbient) ambient else null })
+        HomeBackground()
 
         AppBar(state.apps, state.installed, actions::openApp,
             Modifier.padding(start = 40.dp, top = 30.dp, bottom = 30.dp).width(97.dp).fillMaxHeightCompat(),
-            returnTo = { returnFocus() })
+            returnTo = { returnFocus() }, onReorder = actions::reorderApps)
 
         CompositionLocalProvider(LocalBringIntoViewSpec provides pageSpec) {
             LazyColumn(
@@ -193,7 +191,7 @@ fun HomeScreen(
                 item(key = "hero", contentType = "hero") {
                     Row(Modifier.section("hero") { focusedSection = it; pageSpec.section = it }.padding(start = RowStartPad, top = 20.dp, bottom = 18.dp)) {
                         Banner(banner, bannerIndex, state.prefs.subs, state.apps, BannerW, BannerH,
-                            onClick = actions::openTitle, onFocus = { t: Title -> ambient = Color(t.c1) to Color(t.c2); lastContent = heroRequester; lastRowKey = null },
+                            onClick = actions::openTitle, onFocus = { _: Title -> lastContent = heroRequester; lastRowKey = null },
                             modifier = Modifier.testTag("hero").focusRequester(heroRequester).focusProperties { right = if (assistantOverlay != null) overlayRequester else playRequester })
                         Spacer(Modifier.width(20.dp))
                         ActiveSection(state.nowPlaying, state.news.firstOrNull(), state.today, actions, playRequester,
@@ -207,8 +205,9 @@ fun HomeScreen(
                         row, state.prefs.subs, state.apps,
                         animateDevices = motion.loops && resumed && devIndex >= 0 && kotlin.math.abs(near - devIndex) <= 1,
                         onOpen = actions::openTitle,
-                        onFocusTitle = { t -> ambient = t?.let { Color(it.c1) to Color(it.c2) } ?: (Color(0xFF0B2A6B) to Color(0xFF2F7BFF)) },
-                        onDevice = { },
+                        onFocusTitle = {},
+                        onDevice = { key -> rows.firstOrNull { it.key == "dev" }?.items?.filterIsInstance<RowItem.Device>()
+                            ?.firstOrNull { it.key == key }?.inputId?.let(actions::openInput) },
                         modifier = Modifier.section(row.key) { focusedSection = it; pageSpec.section = it }.padding(top = 8.dp),
                         onTileFocused = { lastContent = it; lastRowKey = row.key },
                         rowRequester = rowRequesters.getOrPut(row.key) { FocusRequester() },
@@ -218,10 +217,10 @@ fun HomeScreen(
         }
 
         if (castOpen) {
-            // a light scrim says the menu is in charge; it sits under the Cast button, clear of the button's name
+            // a light scrim says the menu is in charge; it sits just under the Cast button
             Box(Modifier.fillMaxSize().background(Color(0x59000000)))
             CastMenu(state.castDevices, state.tvName, onClose = { castOpen = false },
-                Modifier.padding(start = ContentX + RowStartPad + 46.dp, top = 104.dp))
+                Modifier.padding(start = ContentX + RowStartPad + 46.dp, top = 80.dp))
         }
 
         // a small clock once the top bar has scrolled away

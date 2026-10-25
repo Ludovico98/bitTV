@@ -19,7 +19,7 @@ enum class TitleType { SERIES, MOVIE }
 /** The poster wordmark style, as in the prototype. */
 enum class TitleFont { BEBAS, PLAYFAIR, OSWALD, INTER }
 
-/** A show or film. [c1]/[c2] are ARGB poster colours, also used for the ambient colour bleed. */
+/** A show or film. [c1]/[c2] are ARGB poster colours (the drawn posters, and the placeholder while artwork loads). */
 data class Title(
     val id: String,
     val name: String,
@@ -48,9 +48,10 @@ data class Prefs(
     val subs: Set<Svc> = Svc.entries.toSet() - Svc.PARAMOUNT,
     val watchLater: List<String> = listOf("longtide", "loworbit", "grandeur", "commissario", "static"),
     val animations: Boolean = true,
-    val ambient: Boolean = true,
     val voice: String? = null,
     val overscanGuides: Boolean = false,
+    /** His order for the app bar (ids); empty = the default order. */
+    val appOrder: List<String> = emptyList(),
 )
 
 fun Title.isAvailable(subs: Set<Svc>): Boolean = services.any { it in subs }
@@ -62,7 +63,9 @@ enum class WeatherKind { SUN, CLOUD, RAIN }
 
 data class WeatherNow(val tempC: Int, val kind: WeatherKind)
 
-data class NowPlaying(val track: String, val artist: String, val durationSec: Int, val positionSec: Int, val playing: Boolean)
+/** What is playing in a media app. [art] is the cover (a Bitmap from the session, or anything Coil loads); [source] its package. */
+data class NowPlaying(val track: String, val artist: String, val durationSec: Int, val positionSec: Int, val playing: Boolean,
+                      val art: Any? = null, val source: String? = null)
 
 data class NewsItem(val headline: String, val source: String)
 

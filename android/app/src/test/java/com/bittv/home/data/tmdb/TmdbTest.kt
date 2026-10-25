@@ -90,24 +90,6 @@ class TmdbParseTest {
     }
 }
 
-class ArtColorsTest {
-    @Test fun leftAndRightHalvesGiveTheTwoColours() {
-        // 4×2 image: left half pure red, right half pure blue
-        val red = 0xFFFF0000.toInt(); val blue = 0xFF0000FF.toInt()
-        val px = intArrayOf(red, red, blue, blue, red, red, blue, blue)
-        val (c1, c2) = ArtColors.from(px, 4, 2)
-        assertTrue("c1 is reddish", (c1 shr 16 and 0xFF) > (c1 and 0xFF))
-        assertTrue("c2 is bluish", (c2 and 0xFF) > (c2 shr 16 and 0xFF))
-        assertEquals(0xFF, (c1 ushr 24).toInt() and 0xFF)
-    }
-
-    @Test fun veryBrightArtIsDarkenedForTheBackground() {
-        val white = IntArray(4) { 0xFFFFFFFF.toInt() }
-        val (c1, _) = ArtColors.from(white, 2, 2)
-        assertTrue("ambient colour must stay dark enough for white text", (c1 shr 8 and 0xFF) < 0xB0)
-    }
-}
-
 class TmdbCatalogTest {
     private val genres = """{"genres":[{"id":18,"name":"Drama"}]}"""
     private fun page(id: Int, name: String) = """{"results":[{"id":$id,"name":"$name","title":"$name","overview":"x","first_air_date":"2020-01-01",

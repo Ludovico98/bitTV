@@ -55,14 +55,6 @@ class CatalogRepoTest {
         assertEquals(1, calls[0])
     }
 
-    @Test fun artworkColoursAreAppliedAndKept() = runTest {
-        val file = tmp.newFile()
-        val repo = CatalogRepo(tmdb(listOf(real)), file, colours = { l -> l.map { it.copy(c1 = 0xFF00FF00) } })
-        repo.refresh()
-        assertEquals(0xFF00FF00, repo.state.value.titles.single().c1)
-        assertEquals(0xFF00FF00, TmdbParse.fromCache(file.readText())!!.single().c1)
-    }
-
     @Test fun continueWatchingDoesNotRepeatTheWatchLaterPicks() {
         val many = (1..12).map { real.copy(id = "tv$it", score = it.toDouble()) }
         val wl = WatchLaterSeed.replaceDemo(com.bittv.home.model.Prefs().watchLater, many, com.bittv.home.model.Prefs().subs)!!

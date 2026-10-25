@@ -5,7 +5,6 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.bittv.home.data.CatalogRepo
 import com.bittv.home.data.DemoCatalog
 import com.bittv.home.data.PrefsRepo
-import com.bittv.home.data.tmdb.ArtColorLoader
 import com.bittv.home.data.tmdb.TmdbCatalog
 import com.bittv.home.net.httpGet
 import com.bittv.home.platform.AndroidPackages
@@ -19,9 +18,11 @@ class AppGraph(context: Context) {
     val prefs = PrefsRepo(context.applicationContext.prefsStore)
     val apps = DemoCatalog.apps
     val appsRepo = AppsRepo(AndroidPackages(context.applicationContext))
+    val nowPlaying = com.bittv.home.platform.NowPlayingRepo(context.applicationContext)
+    val tvInputs = com.bittv.home.platform.AndroidTvInputs(context.applicationContext)
+    val speech = com.bittv.home.platform.SpeechListener(com.bittv.home.platform.AndroidSpeechEngine(context.applicationContext))
     val catalog = CatalogRepo(
         source = BuildConfig.TMDB_KEY.takeIf { it.isNotBlank() }?.let { key -> TmdbCatalog(key) { url, auth -> httpGet(url, auth) } },
         cacheFile = File(context.filesDir, "tmdb-catalog.json"),
-        colours = ArtColorLoader::apply,
     )
 }

@@ -51,7 +51,7 @@ import androidx.compose.foundation.Canvas
 
 data class Shortcut(val label: String, val glyph: Glyph, val onClick: () -> Unit)
 
-/** Round shortcut buttons; the name appears under the highlighted one. */
+/** Round shortcut buttons, icon only (their names would sit under the banner). */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun ShortcutButtons(items: List<Shortcut>, modifier: Modifier = Modifier, onFocused: (FocusRequester) -> Unit = {}) {
@@ -81,11 +81,6 @@ private fun RoundButton(s: Shortcut, onFocused: (FocusRequester) -> Unit) {
                 .border(1.dp, if (focused) Color.White else GlassLine, CircleShape),
             contentAlignment = Alignment.Center,
         ) { GlyphIcon(s.glyph, if (focused) Color(0xFF0B0F18) else Ink, Modifier.size(16.dp)) }
-        // the name takes no width, so hidden labels don't push the buttons apart
-        Box(Modifier.align(Alignment.BottomCenter).offset(y = 23.dp).requiredSize(0.dp), contentAlignment = Alignment.Center) {
-            Text(s.label, style = Type.Caption.copy(color = Ink, fontWeight = FontWeight.SemiBold),
-                modifier = Modifier.wrapContentSize(unbounded = true).alpha(if (focused) 1f else 0f), softWrap = false)
-        }
     }
 }
 

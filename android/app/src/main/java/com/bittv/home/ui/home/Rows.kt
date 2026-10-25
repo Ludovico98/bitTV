@@ -183,9 +183,10 @@ private fun DeviceTile(item: RowItem.Device, animate: Boolean, modifier: Modifie
     val live = item.live
     val w = if (live) 280.dp else 160.dp; val h = if (live) 158.dp else 90.dp
     Column(Modifier.width(w)) {
-        FocusTile(onClick = onClick, onFocus = onFocus, width = w, height = h, modifier = modifier.testTag("tile:dev:${item.key}")) {
+        FocusTile(onClick = onClick, onFocus = onFocus, width = w, height = h, lift = item.inputId == null,
+            modifier = modifier.testTag("tile:dev:${item.key}")) {
             if (live) {
-                Ps5Preview(animate, Modifier.fillMaxSize())
+                if (item.inputId != null) TvPreview(item.inputId, Modifier.fillMaxSize()) else Ps5Preview(animate, Modifier.fillMaxSize())
                 Row(Modifier.align(Alignment.BottomStart).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("LIVE", style = Type.Caption.copy(color = Color.White, fontWeight = FontWeight.ExtraBold),
                         modifier = Modifier.background(Color(0xFFE5322D), RoundedCornerShape(4.dp)).padding(horizontal = 5.dp))

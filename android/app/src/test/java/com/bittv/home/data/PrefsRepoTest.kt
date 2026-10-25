@@ -32,7 +32,6 @@ class PrefsRepoTest {
         assertEquals(Svc.entries.toSet() - Svc.PARAMOUNT, p.subs)
         assertEquals(listOf("longtide", "loworbit", "grandeur", "commissario", "static"), p.watchLater)
         assertTrue(p.animations)
-        assertTrue(p.ambient)
         assertNull(p.voice)
         assertFalse(p.overscanGuides)
         assertEquals(Prefs(), p)

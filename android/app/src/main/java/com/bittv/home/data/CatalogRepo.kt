@@ -16,12 +16,10 @@ interface CatalogSource { suspend fun load(): List<Title>? }
 /**
  * The titles on Home and in Search. Without a source (no TMDB key) it is the demo catalogue. With one, the last
  * catalogue saved in [cacheFile] shows at once (also offline) and [refresh] replaces it at most every 12 hours.
- * [colours] fills in each title's ambient colours from its artwork.
  */
 class CatalogRepo(
     private val source: CatalogSource?,
     private val cacheFile: File,
-    private val colours: suspend (List<Title>) -> List<Title> = { it },
     private val now: () -> Long = System::currentTimeMillis,
 ) {
     enum class Source { DEMO, TMDB }
@@ -42,9 +40,7 @@ class CatalogRepo(
         if (_state.value.source == Source.TMDB && now() - cacheFile.lastModified() < MAX_AGE_MS) return
         val titles = src.load() ?: return
         _state.value = tmdbState(titles)
-        val coloured = colours(titles)
-        _state.value = tmdbState(coloured)
-        withContext(Dispatchers.IO) { cacheFile.writeText(TmdbParse.toCache(coloured)) }
+        withContext(Dispatchers.IO) { cacheFile.writeText(TmdbParse.toCache(titles)) }
     }
 
     companion object { const val MAX_AGE_MS = 12 * 3_600_000L }

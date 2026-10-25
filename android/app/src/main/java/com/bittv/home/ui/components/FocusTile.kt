@@ -58,15 +58,17 @@ fun FocusTile(
     glow: Boolean = true,
     shape: Shape = RoundedCornerShape(9.dp),
     focusScale: Float = 1.10f,
+    /** False for live video (a TvView is a separate surface: it can't scale or sway with the tile). */
+    lift: Boolean = true,
     onFocus: () -> Unit = {},
     content: @Composable BoxScope.() -> Unit,
 ) {
     val motion = LocalMotion.current
     var focused by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(if (focused) focusScale else 1f, motion.tween(160), label = "tileScale")
+    val scale by animateFloatAsState(if (focused && lift) focusScale else 1f, motion.tween(160), label = "tileScale")
     var swaying by remember { mutableStateOf(false) }
     LaunchedEffect(focused, motion.loops) {
-        swaying = focused && motion.loops
+        swaying = focused && motion.loops && lift
         if (swaying) { delay(160L + 2 * SWAY_LEG_MS); swaying = false }
     }
     Box(

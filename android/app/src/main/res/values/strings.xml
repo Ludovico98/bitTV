@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">BitTV</string>
+    <string name="home_key_service_description">Keeps BitTV as the home screen: opens it when you press Home on the remote.</string>
 </resources>
