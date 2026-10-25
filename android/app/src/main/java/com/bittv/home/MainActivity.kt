@@ -10,6 +10,14 @@ import androidx.activity.compose.setContent
 import com.bittv.home.ui.root.BitTvRoot
 import com.bittv.home.ui.theme.BitTvTheme
 import com.bittv.home.ui.theme.TvCanvas
+import com.bittv.home.ui.components.LocalHomeBackdrop
+import com.bittv.home.ui.components.rememberHomeBackdrop
+import android.graphics.drawable.BitmapDrawable
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.platform.LocalWindowInfo
 
 class MainActivity : ComponentActivity() {
     private val homeSignal = mutableIntStateOf(0)
@@ -29,7 +37,15 @@ class MainActivity : ComponentActivity() {
         val skipBoot = intent.getBooleanExtra(EXTRA_SKIP_BOOT, false) ||
             savedInstanceState != null || !bootGate().shouldPlay(bootCount())
         val demoCatalog = intent.getBooleanExtra(EXTRA_DEMO_CATALOG, false)
-        setContent { BitTvTheme { TvCanvas { BitTvRoot(graph, skipBoot, homeSignal.intValue, demoCatalog, askSignal.intValue, wakeSignal.intValue) } } }
+        setContent { BitTvTheme { TvCanvas { WindowBackdrop { BitTvRoot(graph, skipBoot, homeSignal.intValue, demoCatalog, askSignal.intValue, wakeSignal.intValue) } } } }
+    }
+
+    /** Home's background becomes the window's own (Home is always composed underneath every other screen). */
+    @Composable
+    private fun WindowBackdrop(content: @Composable () -> Unit) {
+        val backdrop = rememberHomeBackdrop(LocalWindowInfo.current.containerSize, isWindowBackground = true)
+        LaunchedEffect(backdrop) { backdrop?.let { window.setBackgroundDrawable(BitmapDrawable(resources, it.bitmap.asAndroidBitmap())) } }
+        CompositionLocalProvider(LocalHomeBackdrop provides backdrop, content = content)
     }
 
     // singleTask: pressing Home while BitTV is already in front arrives here

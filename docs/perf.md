@@ -58,4 +58,6 @@ Target: P50 ≤ 17 ms, P90 ≤ 25 ms, layout/record ≤ 10 ms.
 
 | Step | Frames | P50 | P90 | input+anim | layout/record | issue | swap (GPU) | total |
 |---|---|---|---|---|---|---|---|---|
-| Baseline (5938a85) | 22 | 85 | 117 | 2.8 | 15.1 | 11.9 | 54.4 | 97.3 |
+| Baseline (5938a85), process running for hours | 22 | 85 | 117 | 2.8 | 15.1 | 11.9 | 54.4 | 97.3 |
+| Baseline, fresh start (2 runs) | 21 / 19 | 93 / 81 | 117 / 125 | 7.0 / 5.2 | 11.2 / 10.9 | 10.1 / 9.6 | 52.2 / 53.5 | 104.6 / 97.5 |
+| Background drawn once, as the window background (2 runs) | 24 / 27 | 61 / 57 | 69 / 77 | 7.3 / 6.0 | 4.9 / 5.4 | 9.0 / 10.5 | 28.9 / 29.2 | 64.4 / 62.0 |
