@@ -30,5 +30,11 @@ class ComposeA11yTest {
         assertTrue(delegate.getDeclaredField("_enabledServices").type == List::class.java)
     }
 
+    // a screen reader turned on while BitTV runs must get the real list back: null makes Compose re-read it
+    @Test fun aScreenReaderGetsTheRealListBack() {
+        assertTrue(servicesCacheFor(needed = true) == null)
+        assertTrue(servicesCacheFor(needed = false) == emptyList<Any>())
+    }
+
     @Test fun touchExplorationNeedsIt() = assertTrue(composeA11yNeeded(touchExploration = true, feedbackTypes = emptyList()))
 }

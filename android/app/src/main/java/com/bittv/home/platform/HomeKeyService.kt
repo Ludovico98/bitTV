@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.PowerManager
+import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import com.bittv.home.MainActivity
@@ -53,17 +54,15 @@ class HomeKeyService : AccessibilityService() {
     }
 
     /**
-     * Standby: this service is never frozen, so it notes the TV going to sleep even when BitTV's process is; on wake
-     * it brings BitTV in front (whatever app was open), where the logo plays — unless BitTV already played it.
+     * Standby: this service is never frozen, so it notes the TV going to sleep and waking even when BitTV's process
+     * is. It does not pull BitTV in front on wake: the TCL returns to Home by itself (seen 2026-10-25), and a wake
+     * into a cast or the PS5 must stay there.
      */
     private val screen = object : BroadcastReceiver() {
         override fun onReceive(c: Context, i: Intent) {
-            val power = getSystemService(PowerManager::class.java)
             when (i.action) {
-                Intent.ACTION_SCREEN_OFF -> wakeGate().markAsleep(power.isInteractive)
-                Intent.ACTION_SCREEN_ON -> if (wakeGate().pending)
-                    startActivity(Intent(c, MainActivity::class.java).setAction(MainActivity.ACTION_WAKE)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+                Intent.ACTION_SCREEN_OFF -> wakeGate().markAsleep(getSystemService(PowerManager::class.java).isInteractive)
+                Intent.ACTION_SCREEN_ON -> wakeGate().markAwake(SystemClock.elapsedRealtime())
             }
         }
     }
