@@ -42,7 +42,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun SettingsScreen(
     prefs: Prefs, repo: PrefsRepo, apps: List<AppEntry>, voices: List<String>,
-    onSample: () -> Unit, onReplayBoot: () -> Unit, onBack: () -> Unit,
+    onSample: () -> Unit, onReplayBoot: () -> Unit, onBack: () -> Unit, onTvSettings: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     val first = remember { FocusRequester() }
@@ -100,6 +100,11 @@ fun SettingsScreen(
                 OptionRow("Reset Watch Later", Modifier.width(251.dp), value = "Reset", onClick = { scope.launch { repo.clearWatchLater() } })
                 OptionRow("Remote shortcuts", Modifier.width(251.dp).testTag("opt:remote").focusRequester(remoteButton), value = "Show",
                     onClick = { guide = true })
+            }
+            Section("TV")
+            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                // the stock home is off, so the TV's own settings (picture, sound, network, inputs) open from here too
+                OptionRow("TV settings", Modifier.width(251.dp).testTag("opt:tvsettings"), value = "Open", onClick = onTvSettings)
             }
         }
     }
