@@ -18,6 +18,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.bittv.home.BuildConfig
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.shadow
@@ -76,7 +77,8 @@ fun FocusTile(
             .onFocusChanged { if (it.isFocused != focused) { focused = it.isFocused; if (focused) onFocus() } }
             .clickable(remember { MutableInteractionSource() }, indication = null, onClick = onClick)
             .zIndex(if (focused) 1f else 0f)
-            .semantics { tileScale = scale; tileSwaying = swaying }
+            // test hook only: in release it would rebuild the semantics tree on every animation frame
+            .then(if (BuildConfig.DEBUG) Modifier.semantics { tileScale = scale; tileSwaying = swaying } else Modifier)
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .then(if (focused && glow) Modifier.shadow(14.dp, shape, ambientColor = Color.White, spotColor = Color.White) else Modifier)
             .size(width, height),

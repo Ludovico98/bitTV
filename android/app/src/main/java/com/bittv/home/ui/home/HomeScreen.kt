@@ -148,6 +148,12 @@ fun HomeScreen(
     // Vertical page: a LazyColumn whose bring-into-view rule implements the focus line. Lazy layouts take part in
     // focus search (rows beyond the screen are composed on demand), which a hand-translated column cannot do.
     val listState = rememberLazyListState()
+    // read by the rows instead of focusedSection itself: Up/Down then recompose no row unless the Devices row's
+    // "near the focus line" changes
+    val devicesNear by remember(rows) { derivedStateOf {
+        val near = rows.indexOfFirst { it.key == focusedSection }; val dev = rows.indexOfFirst { it.key == "dev" }
+        dev >= 0 && kotlin.math.abs(near - dev) <= 1
+    } }
     val density = LocalDensity.current
     val pageSpec = remember(density, motion) { PageBringIntoView(density, motion) }
     pageSpec.firstRowKey = rows.firstOrNull()?.key
@@ -198,12 +204,10 @@ fun HomeScreen(
                             ActiveW, BannerH, overlay = assistantOverlay, overlayFocus = overlayRequester)
                     }
                 }
-                val near = rows.indexOfFirst { it.key == focusedSection }
-                val devIndex = rows.indexOfFirst { it.key == "dev" }
                 items(rows, key = { it.key }, contentType = { if (it.key == "dev") "dev" else "row" }) { row ->
                     HomeRowSection(
                         row, state.prefs.subs, state.apps,
-                        animateDevices = motion.loops && resumed && devIndex >= 0 && kotlin.math.abs(near - devIndex) <= 1,
+                        animateDevices = motion.loops && resumed && devicesNear,
                         onOpen = actions::openTitle,
                         onFocusTitle = {},
                         onDevice = { key -> rows.firstOrNull { it.key == "dev" }?.items?.filterIsInstance<RowItem.Device>()
