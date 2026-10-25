@@ -1,0 +1,56 @@
+# BitTV — debloat list for the TCL 55C6K-UK (Google TV 14, "Smart TV Pro").
+# Adapted from cleanyourtv's TCL 55C7K-UK list (same G08 platform, firmware UTT2.x):
+#   https://github.com/Gathin23/cleanyourtv/blob/main/examples/tcl-55c7k-uk/debloat.txt
+#
+# Every line is DISABLED with `pm disable-user --user 0`, never uninstalled. restore.sh re-enables all of them.
+# Packages that are not on the TV are skipped. Comment a line out (#) to keep that app.
+# Lines marked [ask] are Ludovico's call — they are commented out until he decides.
+#
+# KEEP (never in this list): com.google.android.katniss (Google Assistant / mic button — he wants it),
+# com.google.android.apps.mediashell (Chromecast), com.tcl.tv + com.tcl.tvinput (HDMI / Live TV),
+# all com.mediatek.*, com.google.android.tv.remote.service (the remote's mic), Netflix, Prime Video,
+# the UK catch-up apps, com.android.vending (Play Store).
+
+# --- TCL tracking and analytics -------------------------------------------------------------
+# NB: on this firmware com.tcl.ttvs is ALSO the firmware updater. Disabled = no system updates;
+#     re-enable it (pm enable com.tcl.ttvs) to check for an update, then disable again.
+com.tcl.ttvs                           # Samba TV viewing tracking (ACR), TCL analytics, Alexa core, updater
+com.tcl.logkit                         # log capture and upload
+com.tcl.usercenter                     # TCL account sign-in nags
+
+# --- TCL content, ads and promos ----------------------------------------------------------
+com.tcl.channelplus                    # TCL Live FAST channels
+com.tcl.tv.tclhome_passive             # pushes TCL content to the home screen at boot
+com.tcl.partnercustomizer              # TCL rows inside the Google TV home
+com.tcl.interactive                    # TCL TIAS background service
+com.tcl.messagebox                     # TCL push messages and promos
+com.tcl.waterfall.overseas             # TCL recommendations browser
+
+# --- Retail demo --------------------------------------------------------------------------
+com.tcl.exhibit
+com.tcl.esticker
+
+# --- Preloaded apps and services he doesn't use ------------------------------------------
+com.tcl.smartalexa                     # Alexa (asked for explicitly)
+com.tcl.ocean.instructions             # e-manual
+com.tcl.repairguide
+com.tcl.guard                          # TCL "cleaner" / app manager
+android.autoinstalls.config.google.gtvpai   # silently installs partner apps
+com.google.android.partnersetup        # partner attribution
+com.google.android.feedback
+com.android.tv.feedbackconsent
+com.google.android.play.games
+
+# --- [ask] ----------------------------------------------------------------------------------
+# com.google.android.youtube.tv        # YouTube — he uses SmartTube; keep if anyone else watches YouTube
+# com.google.android.youtube.tvmusic   # YouTube Music
+# com.tcl.miracast                     # Miracast screen mirroring
+# com.tcl.magiconnectfree              # TCL T-Cast phone mirroring
+# com.tcl.gamebar                      # game mode / VRR overlay — KEEP if the PS5 uses VRR/ALLM
+# com.tcl.airplay2                     # AirPlay (with the next two lines)
+# com.mediatek.AirplayAPK
+# com.mediatek.airplaydaemon
+
+# --- Home screen (handled by install.sh in the safe order, not by disable.sh) ---------------
+# com.google.android.tungsten.setupwraith   # claims HOME once launcherx is off; check Wi-Fi ownership first
+# com.google.android.apps.tv.launcherx      # the stock Google TV home

@@ -6,3 +6,4 @@ android/local.properties
 *.aab
 *.keystore
 .idea/
+tools/tv/backup-*
