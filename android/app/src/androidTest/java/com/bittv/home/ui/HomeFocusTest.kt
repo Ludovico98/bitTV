@@ -24,6 +24,11 @@ import com.bittv.home.today.TodayInfo
 import com.bittv.home.ui.home.HomeActions
 import com.bittv.home.ui.home.HomeScreen
 import com.bittv.home.ui.home.HomeState
+import com.bittv.home.ui.home.bannerTitles
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onAllNodesWithTag
 import com.bittv.home.ui.theme.BitTvTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -38,8 +43,9 @@ class HomeFocusTest {
 
     private var prefs by mutableStateOf(Prefs())
 
+    private val opened = mutableListOf<String>()
     private val actions = object : HomeActions {
-        override fun openTitle(t: Title) {}
+        override fun openTitle(t: Title) { opened += t.id }
         override fun openApp(a: AppEntry) {}
         override fun openSearch() {}
         override fun openSettings() {}
@@ -71,6 +77,67 @@ class HomeFocusTest {
     private fun focusedTag() = tagsUp(focusedNode()).first()
     private fun focusedRow() = tagsUp(focusedNode()).firstOrNull { it.startsWith("row:") }
     private fun inRail() = "rail" in tagsUp(focusedNode())
+
+    private fun banner() = bannerTitles(HomeState(prefs, DemoCatalog.titles, DemoCatalog.progress, DemoCatalog.apps,
+        emptySet(), emptyList(), null, emptyList(), null))
+    private fun slideShown(id: String) = rule.onAllNodesWithTag("slide:$id", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+
+    @Test
+    fun downFromBannerFocusesItsDots() {
+        setHome(); focus("hero"); press(Key.DirectionDown)
+        assertEquals("hero:dots", focusedTag())
+    }
+
+    /** The slide shown, as its index in the banner. */
+    private fun shownIndex(): Int = banner().indexOfFirst { slideShown(it.id) }
+
+    @Test
+    fun leftAndRightOnTheDotsChangeTheSlide() {
+        setHome(); focus("hero"); press(Key.DirectionDown)
+        val n = banner().size
+        val start = shownIndex()
+        press(Key.DirectionRight)
+        assertEquals((start + 1) % n, shownIndex()); assertEquals("hero:dots", focusedTag())
+        press(Key.DirectionLeft, 2)   // back past where it started; from the first slide this wraps to the last
+        assertEquals((start - 1 + n) % n, shownIndex()); assertEquals("hero:dots", focusedTag())
+        repeat(n - (start - 1 + n) % n - 1) { press(Key.DirectionRight) }
+        press(Key.DirectionRight)     // past the last slide: the first
+        assertEquals(0, shownIndex())
+    }
+
+    @Test
+    fun theSlideshowHoldsWhileTheDotsAreFocused() {
+        setHome(); focus("hero"); press(Key.DirectionDown)
+        val start = shownIndex()
+        rule.mainClock.advanceTimeBy(30_000)
+        rule.waitForIdle()
+        assertEquals(start, shownIndex())
+    }
+
+    @Test
+    fun okOnTheDotsOpensTheShownSlide() {
+        setHome(); focus("hero"); press(Key.DirectionDown); press(Key.DirectionRight)
+        val shown = banner()[shownIndex()].id
+        press(Key.DirectionCenter)
+        assertEquals(listOf(shown), opened)
+    }
+
+    @Test
+    fun downFromTheDotsGoesToTheFirstRowAndUpComesBack() {
+        setHome(); focus("hero"); press(Key.DirectionDown); press(Key.DirectionDown)
+        assertEquals("row:wl", focusedRow())
+        press(Key.DirectionUp)
+        assertEquals("hero", focusedTag())
+    }
+
+    @Test
+    fun noCaptionUnderTheFocusedTile() {
+        setHome(); focus("tile:wl:longtide")
+        val t = DemoCatalog.titles.first { it.id == "longtide" }
+        // the title drawn on the artwork is inside the tile; the caption was the same name under it
+        rule.onNode(hasText(t.name) and hasAnyAncestor(hasTestTag("row:wl")) and !hasAnyAncestor(hasTestTag("tile:wl:longtide")),
+            useUnmergedTree = true).assertDoesNotExist()
+    }
 
     @Test
     fun downNeverEntersRail() {

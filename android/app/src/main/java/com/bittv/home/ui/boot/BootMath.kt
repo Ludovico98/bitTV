@@ -29,7 +29,7 @@ object BootMath {
     private const val SHEEN_START = 3.55f
     private const val SHEEN_DUR = 1.1f
 
-    const val WORD = "BitTV"
+    const val WORD = "bitTV"
     const val CAP = 419f
     const val BASE = 453f
     const val GAP = 96f

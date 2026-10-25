@@ -19,6 +19,8 @@ import androidx.compose.ui.test.performClick
 import com.bittv.home.MainActivity
 import com.bittv.home.data.DemoCatalog
 import com.bittv.home.model.Prefs
+import androidx.compose.ui.test.onAllNodesWithText
+import com.bittv.home.ui.details.DetailsScreen
 import com.bittv.home.ui.details.NotInstalledScreen
 import com.bittv.home.ui.search.SearchScreen
 import com.bittv.home.ui.theme.BitTvTheme
@@ -60,6 +62,21 @@ class NotInstalledScreenTest {
         rule.onNodeWithText("Paramount+ isn’t installed").assertExists()
         rule.onNodeWithText("Install Paramount+").assertExists()
         rule.onAllNodesWithTag("icon").assertCountEquals(0)   // no Play Store artwork
+    }
+}
+
+class DetailsScreenTest {
+    @get:Rule val rule = createComposeRule()
+
+    @Test
+    fun onlyPlayAndWatchLaterNoBackButtonOrAvailableOn() {
+        val title = DemoCatalog.titles.first()
+        rule.setContent { BitTvTheme { DetailsScreen(title, Prefs(), null, DemoCatalog.apps, onPlay = {}, onToggleWatchLater = {}) } }
+        rule.onNodeWithTag("play").assertExists()
+        rule.onNodeWithTag("watchlater").assertExists()
+        rule.onAllNodesWithText("Back").assertCountEquals(0)          // the remote's Back goes back
+        rule.onAllNodesWithText("AVAILABLE ON").assertCountEquals(0)  // the Play button already names the app
+        rule.onAllNodesWithText("Subscribed", substring = true).assertCountEquals(0)
     }
 }
 

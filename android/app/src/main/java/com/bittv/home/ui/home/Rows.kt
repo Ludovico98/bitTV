@@ -152,12 +152,11 @@ fun HomeRowSection(
 @Composable
 private fun TitleTile(item: RowItem.Show, rowKey: String, subs: Set<Svc>, apps: List<AppEntry>, modifier: Modifier,
                       onOpen: () -> Unit, onFocus: () -> Unit) {
-    var focused by remember { mutableStateOf(false) }
     val t = item.title
     val svc = t.mainService(subs)
     Column(Modifier.width(160.dp)) {
         FocusTile(onClick = onOpen, onFocus = onFocus, width = 160.dp, height = 90.dp,
-            modifier = modifier.testTag("tile:$rowKey:${t.id}").onFocusChanged { focused = it.isFocused }) {
+            modifier = modifier.testTag("tile:$rowKey:${t.id}")) {
             PosterArt(t, Modifier.fillMaxSize(), overlay = {
                 apps.firstOrNull { it.svc == svc }?.let { AppIcon(it, 18.dp, 18.dp, Modifier.align(Alignment.TopEnd).padding(6.dp), radius = 5.dp) }
                 if (item.star) GlyphIcon(Glyph.STAR_FILLED, Color(0xFFFFD84D), Modifier.align(Alignment.TopStart).padding(7.dp).size(12.dp))
@@ -169,12 +168,9 @@ private fun TitleTile(item: RowItem.Show, rowKey: String, subs: Set<Svc>, apps: 
                 }
             })
         }
-        // caption under the focused tile only
-        Row(Modifier.padding(top = 9.dp).alpha(if (focused) 1f else 0f).fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-            Text(t.name, style = Type.Label, maxLines = 1)
-            Spacer(Modifier.width(5.dp))
-            Text(item.caption ?: svc.label, style = Type.Label.copy(color = Ink2, fontWeight = FontWeight.Medium), maxLines = 1)
-        }
+        // no caption (the artwork shows the title and the app's badge), but the line it took stays: the glass strip and
+        // the space between rows are measured with it, and the focused tile's glow needs the room
+        Text("", style = Type.Label, modifier = Modifier.padding(top = 9.dp))
     }
 }
 

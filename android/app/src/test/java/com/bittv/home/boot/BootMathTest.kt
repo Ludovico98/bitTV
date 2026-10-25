@@ -45,4 +45,7 @@ class BootMathTest {
         assertTrue(first.alpha > last.alpha)
         assertEquals(0f, BootMath.letterState(4, BootMath.END).dy, 0.01f)
     }
+
+    @Test
+    fun theWordIsLowercaseBitTV() = assertEquals("bitTV", BootMath.WORD)
 }

@@ -79,7 +79,9 @@ class TvReadinessTest {
     @Test fun remoteDpadOkAndBackThroughTheInputSystem() {
         assertEquals("hero", focusedTags().first())
         remote(KeyEvent.KEYCODE_DPAD_DOWN)
-        assertTrue("Down from the banner reaches Watch Later: ${focusedTags()}", "row:wl" in focusedTags())
+        assertEquals("Down from the banner focuses its dots", "hero:dots", focusedTags().first())
+        remote(KeyEvent.KEYCODE_DPAD_DOWN)
+        assertTrue("Down from the dots reaches Watch Later: ${focusedTags()}", "row:wl" in focusedTags())
         remote(KeyEvent.KEYCODE_DPAD_CENTER)
         rule.onNodeWithTag("watchlater").assertIsDisplayed()          // the title page opened
         remote(KeyEvent.KEYCODE_BACK)

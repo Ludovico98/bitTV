@@ -1,10 +1,9 @@
 package com.bittv.home.ui.boot
 
+import android.graphics.BlendMode
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
-import android.graphics.PorterDuff
-import android.graphics.PorterDuffXfermode
 import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
@@ -72,7 +71,6 @@ fun BootAnimation(onDone: () -> Unit) {
         BootLayout(Typeface.create(base, 500, false))
     }
     val cubePaint = remember { Paint(Paint.ANTI_ALIAS_FLAG) }
-    val multiply = remember { PorterDuffXfermode(PorterDuff.Mode.MULTIPLY) }
     val sheenPaint = remember {
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = LinearGradient(0f, 0f, 190f, 0f, intArrayOf(0x006CC4FF, 0xF26CC4FF.toInt(), 0x006CC4FF), null, Shader.TileMode.CLAMP)
@@ -109,13 +107,15 @@ fun BootAnimation(onDone: () -> Unit) {
                 nc.drawText(ch.toString(), layout.starts[i] + layout.shift, BootMath.BASE + ls.dy, layout.paint)
             }
             layout.paint.alpha = 255
-            // cubes, in their own layer so cube B's multiply only mixes with the other cubes
+            // cubes, in their own layer so cube B's multiply only mixes with the other cubes. CSS's mix-blend-mode multiply
+            // (the HTML) is BlendMode.MULTIPLY: the Porter-Duff MULTIPLY used before also multiplies alpha, which
+            // erased cube B wherever it did not overlap cube A (only the overlap showed)
             nc.saveLayer(null, null)
             BootMath.cubes.forEachIndexed { i, c ->
                 val st = BootMath.cubeState(i, t)
                 if (!st.visible) return@forEachIndexed
                 cubePaint.shader = LinearGradient(0f, -c.h / 2, 0f, c.h / 2, c.gradTop.toInt(), c.gradBottom.toInt(), Shader.TileMode.CLAMP)
-                cubePaint.xfermode = if (c.multiply) multiply else null
+                cubePaint.blendMode = if (c.multiply) BlendMode.MULTIPLY else null
                 nc.save()
                 nc.translate(st.x, st.y)
                 nc.rotate(st.axis); nc.scale(st.stretch, 1f / st.stretch); nc.rotate(-st.axis)

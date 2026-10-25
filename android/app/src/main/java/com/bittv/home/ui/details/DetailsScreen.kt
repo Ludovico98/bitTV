@@ -44,11 +44,11 @@ import com.bittv.home.ui.theme.Bg
 import com.bittv.home.ui.theme.Ink2
 import com.bittv.home.ui.theme.Type
 
-/** A title's page: Play/Resume on its app, Watch Later, and the apps it is on. */
+/** A title's page: Play/Resume on its app and Watch Later. The remote's Back goes back. */
 @Composable
 fun DetailsScreen(
     title: Title, prefs: Prefs, progress: Progress?, apps: List<AppEntry>,
-    onPlay: (Svc) -> Unit, onToggleWatchLater: () -> Unit, onBack: () -> Unit,
+    onPlay: (Svc) -> Unit, onToggleWatchLater: () -> Unit,
 ) {
     val svc = title.mainService(prefs.subs)
     val app = apps.firstOrNull { it.svc == svc }
@@ -83,17 +83,6 @@ fun DetailsScreen(
                     leading = { app?.let { a -> AppIcon(a, 20.dp, 20.dp, radius = 5.dp) } })
                 PillButton(if (saved) "In Watch Later" else "Watch Later", onToggleWatchLater, Modifier.testTag("watchlater"),
                     leading = { c -> GlyphIcon(if (saved) Glyph.STAR_FILLED else Glyph.STAR, c, Modifier.size(15.dp)) })
-                PillButton("Back", onBack, leading = { c -> GlyphIcon(Glyph.BACK, c, Modifier.size(15.dp)) })
-            }
-            Spacer(Modifier.height(24.dp))
-            Text("AVAILABLE ON", style = Type.Kicker)
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                title.services.forEach { s ->
-                    val on = s in prefs.subs
-                    PillButton("${s.label} · ${if (!on) "Not subscribed" else if (s.free) "Free" else "Subscribed"}", { onPlay(s) }, height = 30.dp,
-                        leading = { apps.firstOrNull { it.svc == s }?.let { a -> AppIcon(a, 20.dp, 20.dp, radius = 5.dp) } })
-                }
             }
         }
     }

@@ -6,6 +6,7 @@ import com.bittv.home.ui.home.HomeState
 import com.bittv.home.ui.home.RowItem
 import com.bittv.home.ui.home.homeRows
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -27,6 +28,34 @@ class ExternalDevicesTest {
 
     @Test fun unpluggedDeviceDisappears() {
         assertEquals(emptyList<ExternalDevice>(), ExternalDevices.pick(tv.map { if (it.parentId != null) it.copy(connected = false) else it }))
+    }
+
+    @Test fun aDeviceInStandbyHasNoPreview() {
+        val ps5 = tv.map { if (it.parentId != null) it.copy(on = false) else it }
+        assertEquals(listOf(false), ExternalDevices.pick(ps5).map { it.on })
+    }
+
+    // the TCL re-adds the PS5's input on wake and on hotplug, and for a second or two reports it CONNECTED (the
+    // default) before the CEC power status arrives — the PS5 was woken by a preview opened in that window
+    @Test fun aJustAddedInputIsNotTrustedToBeOn() {
+        val fresh = tv.map { if (it.parentId != null) it.copy(recent = true) else it }
+        assertEquals(listOf(false), ExternalDevices.pick(fresh).map { it.on })
+    }
+
+    @Test fun anInputIsRecentOnlyForTheSettleWindowAfterItWasAdded() {
+        val settle = InputSettle(windowMs = 10_000)
+        settle.added("ps5", now = 1_000)
+        assertTrue(settle.recent("ps5", now = 10_999))
+        assertFalse(settle.recent("ps5", now = 11_000))
+        assertFalse(settle.recent("other", now = 1_000))
+        settle.added("ps5", now = 20_000)   // re-added: a new window
+        assertTrue(settle.recent("ps5", now = 25_000))
+    }
+
+    // TCL's HDMI session (TvPassThroughSession.onTune) skips its CEC device select — the <Set Stream Path> that
+    // wakes the PS5 and makes it take over the TV — and the <Standby> on release when this flag is in the tune params
+    @Test fun previewsTuneWithoutCec() {
+        assertEquals(mapOf("isCecDeviceDisable" to true), HdmiPreview.TUNE_FLAGS)
     }
 
     private fun state(devices: List<ExternalDevice>?) = HomeState(Prefs(), DemoCatalog.titles, DemoCatalog.progress, DemoCatalog.apps,

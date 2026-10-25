@@ -308,7 +308,7 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
                     query = searchQuery, onQueryChange = { searchQuery = it })
                 is Screen.Details -> { if (!demoCatalog) LaunchedEffect(top.title.id) { top.title.services.forEach { linkFor(top.title, it) } }
                 DetailsScreen(top.title, effective, catalog.progress.firstOrNull { it.titleId == top.title.id }, apps,
-                    onPlay = { play(top.title, it) }, onToggleWatchLater = { actions.toggleWatchLater(top.title) }, onBack = ::pop) }
+                    onPlay = { play(top.title, it) }, onToggleWatchLater = { actions.toggleWatchLater(top.title) }) }
                 is Screen.NotInstalled -> NotInstalledScreen(top.app, onInstall = {
                     if (demoCatalog) installed = installed + top.app.id else graph.appsRepo.openStore(top.app)
                     pop()

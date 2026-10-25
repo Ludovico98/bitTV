@@ -128,9 +128,12 @@ fun HomeScreen(
     // where focus goes back to: the last item, else its row (the item may have been removed), else the banner
     fun returnFocus(): Boolean = tryFocus(lastContent) || tryFocus(lastRowKey?.let { rowRequesters[it] }) || tryFocus(heroRequester)
 
-    LaunchedEffect(resumed, banner.size) {
-        if (!resumed || banner.isEmpty()) return@LaunchedEffect
-        while (true) { delay(7_000); bannerIndex = (bannerIndex + 1) % banner.size }
+    // the slideshow holds still while its dots are focused (the slides are being chosen by hand), and a slide
+    // changed by hand gets its full 7 s after
+    var dotsFocused by remember { mutableStateOf(false) }
+    LaunchedEffect(resumed, banner.size, bannerIndex, dotsFocused) {
+        if (!resumed || banner.isEmpty() || dotsFocused) return@LaunchedEffect
+        delay(7_000); bannerIndex = (bannerIndex + 1) % banner.size
     }
     LaunchedEffect(resumed) {
         while (resumed) { clock = now(); delay(60_000L - clock.second * 1000L) }
@@ -198,6 +201,8 @@ fun HomeScreen(
                     Row(Modifier.section("hero") { focusedSection = it; pageSpec.section = it }.padding(start = RowStartPad, top = 20.dp, bottom = 18.dp)) {
                         Banner(banner, bannerIndex, state.prefs.subs, state.apps, BannerW, BannerH,
                             onClick = actions::openTitle, onFocus = { _: Title -> lastContent = heroRequester; lastRowKey = null },
+                            onIndexChange = { bannerIndex = it }, bannerRequester = heroRequester, onDotsFocus = { dotsFocused = it },
+                            dotsDown = rows.firstOrNull()?.let { rowRequesters.getOrPut(it.key) { FocusRequester() } },
                             modifier = Modifier.testTag("hero").focusRequester(heroRequester).focusProperties { right = if (assistantOverlay != null) overlayRequester else playRequester })
                         Spacer(Modifier.width(20.dp))
                         ActiveSection(state.nowPlaying, state.news.firstOrNull(), state.today, actions, playRequester,

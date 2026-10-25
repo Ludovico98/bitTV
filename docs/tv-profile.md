@@ -53,7 +53,8 @@ sees it; BitTV answering in the active section needs the helper planned in plan 
 
 Found on the TV: browser `com.tcl.browser`; media player `com.tcl.ui_mediaCenter` (TCL Media Center: USB and network
 videos, music, pictures); HDMI inputs open in `com.tcl.tv` (Live Channels also claims them, hence the chooser before).
-The HDMI preview sends CEC routing when it connects, so BitTV previews only a device the TV reports as on.
+The HDMI preview used to send CEC routing when it connected; it now tunes with TCL's `isCecDeviceDisable` (see below)
+and only for a device the TV reports as on.
 
 ## The Home helper (2026-10-25)
 
@@ -75,9 +76,17 @@ The message persisted with both enabled, after restarting the Assistant app: the
   Settings → Accessibility after installing.
 - **Standby:** going to sleep puts launcherx's `DispatchActivity` on top (BitTV is stopped while the TV is already
   non-interactive); waking returns to Home and resumes BitTV ~200 ms *before* `SCREEN_ON` is delivered.
-- **HDMI input state can be stale after a wake:** the PS5's input still read CONNECTED while it was in standby; the
-  Devices row's live preview then opened a TvView session, and TCL's CEC device-select sent the PS5 a Power key (it
-  woke and took over the input). See the open item in docs/perf.md / the report of 2026-10-25.
+- **HDMI input state can be stale after a wake:** the TCL removes and re-adds the PS5's input on wake and hotplug; a
+  re-added input reads CONNECTED (the default) until the CEC power status arrives 1–2 s later. BitTV trusts an input's
+  state only 10 s after it was added (`InputSettle`).
+- **Why the PS5 woke and slept "on its own" (CEC log, `dumpsys hdmi_control`, 2026-10-25):** every TvView session on
+  the PS5's input made TCL's `TvPassThroughSession.onTune` run `HdmiTvClient.deviceSelect` → `<Set Stream Path>` to
+  2.0.0.0, which wakes the PS5; the PS5 then announced `<Active Source>` and TCL launched `com.tcl.tv/.TVActivity`
+  over Home. Releasing the session (or Home taking over) ran `deviceSelect(0)` + TCL's auto-switch standby →
+  `<Standby>` to the PS5. The TCL session skips both when the tune params carry `isCecDeviceDisable=true` (read from
+  `TIF_TvInput.apk` with dexdump); BitTV's preview now always passes it (`HdmiPreview.TUNE_FLAGS`). Verified on the
+  TV: Home and the Devices row with the PS5 in standby send no CEC. Not yet seen: the live picture of a PS5 that is
+  on with the flag set.
 - Compose treats *any* enabled accessibility service (here Button Mapper and the Home helper) as a reason to diff
   semantics every frame; `ComposeA11y` turns that off unless a screen reader is on.
 - Build on this machine with `JAVA_HOME=~/.local/jdks/jdk-21.0.13+9` (the system JDK 21 is a JRE without javac);

@@ -20,7 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.bittv.home.BuildConfig
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
@@ -62,10 +62,13 @@ fun FocusTile(
     /** False for live video (a TvView is a separate surface: it can't scale or sway with the tile). */
     lift: Boolean = true,
     onFocus: () -> Unit = {},
+    /** Shown as focused while something inside it has focus (the banner while its dots are focused). */
+    lit: Boolean = false,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val motion = LocalMotion.current
-    var focused by remember { mutableStateOf(false) }
+    var hasFocus by remember { mutableStateOf(false) }
+    val focused = hasFocus || lit
     val scale by animateFloatAsState(if (focused && lift) focusScale else 1f, motion.tween(160), label = "tileScale")
     var swaying by remember { mutableStateOf(false) }
     LaunchedEffect(focused, motion.loops) {
@@ -74,7 +77,7 @@ fun FocusTile(
     }
     Box(
         modifier
-            .onFocusChanged { if (it.isFocused != focused) { focused = it.isFocused; if (focused) onFocus() } }
+            .onFocusChanged { if (it.isFocused != hasFocus) { hasFocus = it.isFocused; if (hasFocus) onFocus() } }
             .clickable(remember { MutableInteractionSource() }, indication = null, onClick = onClick)
             .zIndex(if (focused) 1f else 0f)
             // test hook only: in release it would rebuild the semantics tree on every animation frame
@@ -83,46 +86,45 @@ fun FocusTile(
             .then(if (focused && glow) Modifier.shadow(14.dp, shape, ambientColor = Color.White, spotColor = Color.White) else Modifier)
             .size(width, height),
     ) {
-        if (swaying) SwayingContent(shape, content) else StillContent(shape, focused, content)
+        TileContent(shape, focused, swaying, content)
     }
 }
 
+/**
+ * The tile's face: clipped, a white border while focused, and while [swaying] a lift, a sway (±1.5° / ±2.5°) and a
+ * moving light — one 4.5 s swing out and back after the focus scale, then rest. The content stays put in the
+ * composition whether or not it sways: rebuilding it would drop focus from anything focusable inside (the banner's
+ * dots) and restart what it runs. The sway is read in the layer and draw phases only: no recomposition per frame.
+ */
 @Composable
-private fun StillContent(shape: Shape, focused: Boolean, content: @Composable BoxScope.() -> Unit) {
-    Box(Modifier.fillMaxSize().clip(shape).then(if (focused) Modifier.border(2.dp, Color.White, shape) else Modifier), content = content)
-}
-
-/** Lift, sway (±1.5° / ±2.5°) and a moving light: one 4.5 s swing out and back after the focus scale, then rest. */
-@Composable
-private fun SwayingContent(shape: Shape, content: @Composable BoxScope.() -> Unit) {
+private fun TileContent(shape: Shape, focused: Boolean, swaying: Boolean, content: @Composable BoxScope.() -> Unit) {
     val anim = remember { Animatable(0f) }
-    LaunchedEffect(Unit) {
+    LaunchedEffect(swaying) {
+        if (!swaying) { anim.snapTo(0f); return@LaunchedEffect }
         delay(160)
         anim.animateTo(1f, tween(SWAY_LEG_MS))
         anim.animateTo(0f, tween(SWAY_LEG_MS))
     }
-    val t = anim.value
     Box(
         Modifier
             .fillMaxSize()
-            .graphicsLayer {
+            .then(if (swaying) Modifier.graphicsLayer {
+                val t = anim.value
                 rotationX = 1.5f - 3f * t
                 rotationY = -2.5f + 5f * t
                 cameraDistance = 24f * density
-            }
+            } else Modifier)
             .clip(shape)
-            .border(2.dp, Color.White, shape),
-    ) {
-        content()
-        Box(
-            Modifier.fillMaxSize().drawWithCache {
-                val light = Brush.radialGradient(
+            .then(if (focused) Modifier.border(2.dp, Color.White, shape) else Modifier)
+            .then(if (swaying) Modifier.drawWithContent {
+                drawContent()
+                val t = anim.value
+                drawRect(Brush.radialGradient(
                     listOf(Color.White.copy(alpha = 0.22f), Color.Transparent),
                     center = Offset(size.width * (0.25f + 0.3f * t), size.height * (0.1f + 0.15f * t)),
                     radius = size.width * 0.55f,
-                )
-                onDrawBehind { drawRect(light) }
-            },
-        )
-    }
+                ))
+            } else Modifier),
+        content = content,
+    )
 }

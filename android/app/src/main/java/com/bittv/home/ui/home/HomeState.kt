@@ -56,7 +56,7 @@ interface HomeActions {
 /** One cell of a row: a title (with optional progress) or the PS5 / HDMI tiles in Devices. */
 sealed interface RowItem {
     val key: String
-    data class Show(val title: Title, val progress: Float? = null, val caption: String? = null, val star: Boolean = false) : RowItem {
+    data class Show(val title: Title, val progress: Float? = null, val star: Boolean = false) : RowItem {
         override val key get() = title.id
     }
     /** An HDMI device tile; [inputId] is the real input (null: the demo's stand-in). */
@@ -93,7 +93,7 @@ fun homeRows(s: HomeState): List<HomeRow> {
         HomeRow("wl", "Watch Later", items = s.prefs.watchLater.mapNotNull { byId[it] }.map { RowItem.Show(it) },
             empty = "Nothing saved yet — add titles from their page to keep them here"),
         HomeRow("cw", "Continue Watching", items = s.progress.mapNotNull { p ->
-            byId[p.titleId]?.takeIf { it.isAvailable(subs) }?.let { RowItem.Show(it, p.fraction, p.label, it.id in s.prefs.watchLater) }
+            byId[p.titleId]?.takeIf { it.isAvailable(subs) }?.let { RowItem.Show(it, p.fraction, star = it.id in s.prefs.watchLater) }
         }),
         // real devices when known (none → no row); the demo's stand-ins otherwise
         HomeRow("dev", "Devices", items = s.devices?.map { RowItem.Device(it.inputId, listOfNotNull(it.label, it.port).joinToString(" · "), live = true, inputId = it.inputId, on = it.on) }
