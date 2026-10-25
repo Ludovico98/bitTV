@@ -17,6 +17,7 @@ import com.bittv.home.ui.components.FocusTile
 import com.bittv.home.ui.components.LocalMotion
 import com.bittv.home.ui.components.Motion
 import com.bittv.home.ui.components.TileScale
+import com.bittv.home.ui.components.TileSwaying
 import org.junit.Rule
 import org.junit.Test
 
@@ -59,5 +60,15 @@ class FocusTileTest {
         rule.onNodeWithTag("tile").assert(SemanticsMatcher("scale between 1 and 1.1") { n ->
             val s = n.config.getOrElse(TileScale) { 0f }; s > 1f && s < 1.10f
         })
+    }
+
+    @Test
+    fun swaySettlesSoAnIdleScreenStopsRedrawing() {
+        rule.mainClock.autoAdvance = false
+        setTile(Motion(enabled = true))
+        rule.mainClock.advanceTimeBy(1_000)
+        rule.onNodeWithTag("tile").assert(SemanticsMatcher.expectValue(TileSwaying, true))
+        rule.mainClock.advanceTimeBy(9_500)                    // two 4.5 s cycles, then it settles
+        rule.onNodeWithTag("tile").assert(SemanticsMatcher.expectValue(TileSwaying, false))
     }
 }

@@ -1,10 +1,7 @@
 package com.bittv.home.ui.components
 
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -15,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,10 +33,17 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import kotlinx.coroutines.delay
 
 /** The tile's current scale, exposed for UI tests. */
 val TileScale = SemanticsPropertyKey<Float>("TileScale")
 private var SemanticsPropertyReceiver.tileScale by TileScale
+
+/** Whether the tvOS sway is running (it settles after two gentle cycles so an idle screen stops redrawing). */
+val TileSwaying = SemanticsPropertyKey<Boolean>("TileSwaying")
+private var SemanticsPropertyReceiver.tileSwaying by TileSwaying
+
+private const val SWAY_LEG_MS = 4_500
 
 /**
  * A focusable card: on focus it grows to 1.10 with a white border and glow in 160 ms, then (tvOS style) lifts,
@@ -59,17 +64,22 @@ fun FocusTile(
     val motion = LocalMotion.current
     var focused by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(if (focused) focusScale else 1f, motion.tween(160), label = "tileScale")
+    var swaying by remember { mutableStateOf(false) }
+    LaunchedEffect(focused, motion.loops) {
+        swaying = focused && motion.loops
+        if (swaying) { delay(160L + 2 * SWAY_LEG_MS); swaying = false }
+    }
     Box(
         modifier
             .onFocusChanged { if (it.isFocused != focused) { focused = it.isFocused; if (focused) onFocus() } }
             .clickable(remember { MutableInteractionSource() }, indication = null, onClick = onClick)
             .zIndex(if (focused) 1f else 0f)
-            .semantics { tileScale = scale }
+            .semantics { tileScale = scale; tileSwaying = swaying }
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .then(if (focused && glow) Modifier.shadow(14.dp, shape, ambientColor = Color.White, spotColor = Color.White) else Modifier)
             .size(width, height),
     ) {
-        if (focused && motion.loops) SwayingContent(shape, content) else StillContent(shape, focused, content)
+        if (swaying) SwayingContent(shape, content) else StillContent(shape, focused, content)
     }
 }
 
@@ -78,12 +88,16 @@ private fun StillContent(shape: Shape, focused: Boolean, content: @Composable Bo
     Box(Modifier.fillMaxSize().clip(shape).then(if (focused) Modifier.border(2.dp, Color.White, shape) else Modifier), content = content)
 }
 
-/** Lift, sway (±1.5° / ±2.5°) and a moving light, 4.5 s back and forth, after the focus scale has finished. */
+/** Lift, sway (±1.5° / ±2.5°) and a moving light: one 4.5 s swing out and back after the focus scale, then rest. */
 @Composable
 private fun SwayingContent(shape: Shape, content: @Composable BoxScope.() -> Unit) {
-    val t by rememberInfiniteTransition(label = "sway").animateFloat(
-        0f, 1f, infiniteRepeatable(tween(4500, delayMillis = 160), RepeatMode.Reverse), label = "swayT",
-    )
+    val anim = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        delay(160)
+        anim.animateTo(1f, tween(SWAY_LEG_MS))
+        anim.animateTo(0f, tween(SWAY_LEG_MS))
+    }
+    val t = anim.value
     Box(
         Modifier
             .fillMaxSize()

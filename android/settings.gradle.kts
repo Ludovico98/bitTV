@@ -14,3 +14,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "BitTV"
 include(":app")
+include(":baselineprofile")

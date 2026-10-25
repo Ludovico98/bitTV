@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.baselineprofile)
 }
 
 android {
@@ -54,6 +55,8 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+
+    baselineProfile(project(":baselineprofile"))
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
