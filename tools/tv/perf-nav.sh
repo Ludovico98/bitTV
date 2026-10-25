@@ -8,6 +8,8 @@ parse_target "$@"
 PKG=com.bittv.home
 # the screensaver may be up: end it first (WAKEUP does nothing to a screen already awake)
 "${ADB[@]}" shell input keyevent KEYCODE_WAKEUP; sleep 1.5
+# Back on Home closes an answer, then puts focus on the banner: every run starts from the same place
+"${ADB[@]}" shell "input keyevent 4; sleep 0.5; input keyevent 4"; sleep 1.5
 "${ADB[@]}" shell dumpsys gfxinfo $PKG reset >/dev/null
 "${ADB[@]}" shell 'for i in 1 2 3 4; do input keyevent 22; sleep 0.4; done
   for i in 1 2 3 4; do input keyevent 21; sleep 0.4; done

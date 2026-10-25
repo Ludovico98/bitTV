@@ -48,7 +48,7 @@ fun Banner(items: List<Title>, index: Int, subs: Set<Svc>, apps: List<AppEntry>,
         shape = RoundedCornerShape(17.dp), focusScale = 1.025f, modifier = modifier) {
         Crossfade(current, animationSpec = LocalMotion.current.tween(400), label = "slide") { t ->
             Box(Modifier.fillMaxSize()) {
-                PosterArt(t, Modifier.fillMaxSize(), showTitle = false, imageWidth = 1280)
+                PosterArt(t, Modifier.fillMaxSize(), showTitle = false, imageWidth = 1280, cornerRadius = 17.dp)
                 // real artwork is busy: a deeper shade behind the text (and along the bottom) than the drawn posters need
                 val deep = t.art != null
                 Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(

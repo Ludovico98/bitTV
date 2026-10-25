@@ -63,6 +63,7 @@ Target: P50 ≤ 17 ms, P90 ≤ 25 ms, layout/record ≤ 10 ms.
 | Background drawn once, as the window background (2 runs) | 24 / 27 | 61 / 57 | 69 / 77 | 7.3 / 6.0 | 4.9 / 5.4 | 9.0 / 10.5 | 28.9 / 29.2 | 64.4 / 62.0 |
 | *Tried:* row fade as one overlay strip, no row layers (2 runs) — **reverted** | 27 / 23 | 77 / 73 | 101 / 97 | 5.7 / 5.3 | 9.0 / 9.0 | 14.8 / 14.4 | 37.2 / 38.3 | 82.9 / 81.9 |
 | *Tried:* row layer kept, mask removed (2 runs) | 28 / 26 | 61 / 57 | 77 / 73 | 6.5 / 5.2 | 4.9 / 5.5 | 8.9 / 9.0 | 28.2 / 29.6 | 63.3 / 60.9 |
+| Posters: artwork baked with its shade and corners, drawn poster only while loading (2 runs) | 25 / 28 | 38 / 42 | 73 / 48 | 7.3 / 6.7 | 3.3 / 2.5 | 6.1 / 8.1 | 13.4 / 16.1 | 44.9 / 43.7 |
 
 **Finding:** the rows' offscreen layers (`fadeIntoGap`) are render caches, not a cost: Android only re-renders a
 layer whose content changed and otherwise copies its texture. Without them every unchanged row was redrawn tile by

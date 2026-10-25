@@ -7,7 +7,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
+import coil3.compose.AsyncImagePainter
+import coil3.compose.LocalPlatformContext
+import coil3.request.ImageRequest
+import coil3.request.transformations
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.fillMaxSize
@@ -31,6 +40,9 @@ import com.bittv.home.ui.theme.Oswald
 import com.bittv.home.ui.theme.Playfair
 import kotlin.math.max
 
+/** The drawn poster stands in until the artwork has loaded; it stays when there is none or it fails. */
+fun posterNeedsPlaceholder(hasArt: Boolean, loaded: Boolean): Boolean = !hasArt || !loaded
+
 /** Mix toward white (amt > 0) or black (amt < 0), as the prototype's mixA(). */
 fun Color.mix(amt: Float): Color {
     val t = if (amt < 0) 0f else 1f; val k = kotlin.math.abs(amt)
@@ -43,8 +55,11 @@ fun Color.mix(amt: Float): Color {
  */
 @Composable
 fun PosterArt(title: Title, modifier: Modifier = Modifier, titleScale: Float = 1f, showTitle: Boolean = true,
-              imageWidth: Int = 780, overlay: @Composable BoxScope.() -> Unit = {}) {
+              imageWidth: Int = 780, cornerRadius: Dp = 9.dp, overlay: @Composable BoxScope.() -> Unit = {}) {
     val c1 = Color(title.c1); val c2 = Color(title.c2)
+    // the drawn poster only shows while the artwork loads (or when there is none): under a loaded image it was five
+    // full-tile gradients drawn for nothing on every frame
+    var loaded by remember(title.art) { mutableStateOf(false) }
     Box(
         modifier.drawWithCache {
             val w = size.width; val h = size.height
@@ -54,14 +69,18 @@ fun PosterArt(title: Title, modifier: Modifier = Modifier, titleScale: Float = 1
             val streak = Brush.linearGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.10f), Color.Transparent),
                 Offset(w * 0.3f, 0f), Offset(w * 0.55f, h * 0.4f))
             val vignette = Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f)), startY = h * 0.45f)
-            onDrawBehind { drawRect(base); drawRect(low); drawRect(glow); drawRect(streak); drawRect(vignette) }
+            onDrawBehind { if (posterNeedsPlaceholder(title.art != null, loaded)) { drawRect(base); drawRect(low); drawRect(glow); drawRect(streak); drawRect(vignette) } }
         },
     ) {
         title.art?.let { art ->
-            AsyncImage(tmdbImage(art, imageWidth), null, Modifier.fillMaxSize().drawWithContent {
-                drawContent()   // the same bottom shade as the drawn posters keeps the title readable on any artwork
-                drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f)), startY = size.height * 0.4f))
-            }, contentScale = ContentScale.Crop)
+            val ctx = LocalPlatformContext.current
+            val cornerPx = with(LocalDensity.current) { cornerRadius.toPx() }
+            // the bottom shade (the same as the drawn posters', keeps the title readable) and the corners are baked in
+            val request = remember(art, imageWidth, cornerPx) {
+                ImageRequest.Builder(ctx).data(tmdbImage(art, imageWidth)).transformations(ShadeTransformation(cornerPx)).build()
+            }
+            AsyncImage(request, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop,
+                onState = { loaded = it is AsyncImagePainter.State.Success })
         }
         if (showTitle) {
             Text(
