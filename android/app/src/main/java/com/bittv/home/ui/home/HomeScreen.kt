@@ -93,9 +93,15 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     assistantOverlay: (@Composable () -> Unit)? = null,
     now: () -> LocalDateTime = { LocalDateTime.now() },
+    /** False while another screen covers Home: its loops pause. */
+    active: Boolean = true,
+    /** Bumped when Home is shown again: focus returns to where it was. */
+    returnToken: Int = 0,
+    /** Bumped by Back on Home: focus (and the page) go back to the top. */
+    topToken: Int = 0,
 ) {
     val motion = LocalMotion.current
-    val resumed = rememberResumed()
+    val resumed = rememberResumed() && active
     val rows = remember(state) { homeRows(state) }
     val banner = remember(state.titles, state.prefs.subs) { bannerTitles(state) }
     var bannerIndex by remember { mutableIntStateOf(0) }
@@ -103,7 +109,7 @@ fun HomeScreen(
     var focusedSection by remember { mutableStateOf("hero") }
     var clock by remember { mutableStateOf(now()) }
     val heroRequester = remember { FocusRequester() }
-    var lastContent by remember { mutableStateOf<FocusRequester?>(null) }   // where Right from the app bar returns
+    var lastContent by remember { mutableStateOf<FocusRequester?>(null) }   // where Right from the app bar (and Back) return
     val playRequester = remember { FocusRequester() }
 
     LaunchedEffect(resumed, banner.size) {
@@ -114,6 +120,8 @@ fun HomeScreen(
         while (resumed) { clock = now(); delay(60_000L - clock.second * 1000L) }
     }
     LaunchedEffect(Unit) { heroRequester.requestFocus() }
+    LaunchedEffect(returnToken) { if (returnToken > 0) (lastContent ?: heroRequester).requestFocus() }
+    LaunchedEffect(topToken) { if (topToken > 0) heroRequester.requestFocus() }
 
     // Vertical page: a LazyColumn whose bring-into-view rule implements the focus line. Lazy layouts take part in
     // focus search (rows beyond the screen are composed on demand), which a hand-translated column cannot do.

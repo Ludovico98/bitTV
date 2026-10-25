@@ -1,0 +1,98 @@
+package com.bittv.home.ui.settings
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.tv.material3.Text
+import com.bittv.home.data.PrefsRepo
+import com.bittv.home.model.AppEntry
+import com.bittv.home.model.Prefs
+import com.bittv.home.model.Svc
+import com.bittv.home.ui.components.AppIcon
+import com.bittv.home.ui.components.OptionRow
+import com.bittv.home.ui.theme.GlassLine
+import com.bittv.home.ui.theme.Type
+import kotlinx.coroutines.launch
+
+/** Settings: subscriptions, the Assistant's voice, and how BitTV looks and moves. Every change is saved at once. */
+@Composable
+fun SettingsScreen(
+    prefs: Prefs, repo: PrefsRepo, apps: List<AppEntry>, voices: List<String>,
+    onSample: () -> Unit, onReplayBoot: () -> Unit, onBack: () -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    val first = remember { FocusRequester() }
+    LaunchedEffect(Unit) { first.requestFocus() }
+    Box(Modifier.fillMaxSize().background(Color(0xD1030408)), contentAlignment = Alignment.Center) {
+        Column(
+            Modifier.width(800.dp).background(Color(0xFF121722), RoundedCornerShape(18.dp)).border(1.dp, GlassLine, RoundedCornerShape(18.dp))
+                .padding(horizontal = 16.dp, vertical = 22.dp),
+        ) {
+            Text("Settings", style = Type.Title.copy(fontSize = 22.sp))
+            Text("Only titles from apps switched on here appear in Suggested, the banner and Search.", style = Type.Caption)
+            Section("Your apps & subscriptions")
+            Svc.entries.chunked(5).forEachIndexed { r, chunk ->
+                Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.padding(bottom = 7.dp)) {
+                    chunk.forEachIndexed { i, s ->
+                        OptionRow(s.label, Modifier.width(148.dp).testTag("opt:${s.name.lowercase()}")
+                            .then(if (r == 0 && i == 0) Modifier.focusRequester(first) else Modifier),
+                            checked = s in prefs.subs, onClick = { scope.launch { repo.toggleSub(s) } },
+                            leading = { apps.firstOrNull { it.svc == s }?.let { AppIcon(it, 22.dp, 22.dp, radius = 5.5.dp) } })
+                    }
+                }
+            }
+            Section("Google Assistant")
+            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                OptionRow("Voice", Modifier.width(509.dp).testTag("opt:voice"), value = prefs.voice ?: "Device default", onClick = {
+                    if (voices.isNotEmpty()) {
+                        val next = voices[(voices.indexOf(prefs.voice) + 1) % voices.size]
+                        scope.launch { repo.setVoice(next) }
+                    }
+                    onSample()
+                })
+                OptionRow("Hear a sample", Modifier.width(252.dp), value = "Play", onClick = onSample)
+            }
+            Section("Experience")
+            Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.padding(bottom = 7.dp)) {
+                OptionRow("Ambient colour bleed", Modifier.width(251.dp).testTag("opt:ambient"), checked = prefs.ambient,
+                    onClick = { scope.launch { repo.setAmbient(!prefs.ambient) } })
+                OptionRow("Animations", Modifier.width(251.dp).testTag("opt:animations"), checked = prefs.animations,
+                    onClick = { scope.launch { repo.setAnimations(!prefs.animations) } })
+                OptionRow("Overscan guides", Modifier.width(251.dp).testTag("opt:guides"), checked = prefs.overscanGuides,
+                    onClick = { scope.launch { repo.setOverscanGuides(!prefs.overscanGuides) } })
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                OptionRow("Replay boot animation", Modifier.width(251.dp), value = "Play", onClick = onReplayBoot)
+                OptionRow("Reset Watch Later", Modifier.width(251.dp), value = "Reset", onClick = { scope.launch { repo.clearWatchLater() } })
+            }
+        }
+    }
+}
+
+@Composable
+private fun Section(text: String) {
+    Spacer(Modifier.height(14.dp))
+    Text(text.uppercase(), style = Type.Kicker)
+    Spacer(Modifier.height(8.dp))
+}

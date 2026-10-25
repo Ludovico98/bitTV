@@ -25,7 +25,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
@@ -47,9 +50,12 @@ import androidx.compose.foundation.Canvas
 data class Shortcut(val label: String, val glyph: Glyph, val onClick: () -> Unit)
 
 /** Round shortcut buttons; the name appears under the highlighted one. */
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun ShortcutButtons(items: List<Shortcut>, modifier: Modifier = Modifier) {
-    Row(modifier, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    // Right at the last button stays put: left/right never changes row
+    Row(modifier.focusProperties { onExit = { if (requestedFocusDirection == FocusDirection.Right) cancelFocusChange() } }.focusGroup(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         items.forEach { RoundButton(it) }
     }
 }
