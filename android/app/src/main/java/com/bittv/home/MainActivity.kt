@@ -38,6 +38,11 @@ class MainActivity : ComponentActivity() {
             savedInstanceState != null || !bootGate().shouldPlay(bootCount())
         val demoCatalog = intent.getBooleanExtra(EXTRA_DEMO_CATALOG, false)
         setContent { BitTvTheme { TvCanvas { WindowBackdrop { BitTvRoot(graph, skipBoot, homeSignal.intValue, demoCatalog, askSignal.intValue, wakeSignal.intValue) } } } }
+        // Compose's per-frame accessibility work only when a screen reader is on (see ComposeA11y); re-applied after
+        // Compose re-reads the services: on attach (this post runs after it), on every change, and on resume
+        a11y.addAccessibilityStateChangeListener(a11yChanged)
+        a11y.addTouchExplorationStateChangeListener(touchChanged)
+        quietA11y()
     }
 
     /** Home's background becomes the window's own (Home is always composed underneath every other screen). */
@@ -57,10 +62,20 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        quietA11y()
         if (com.bittv.home.platform.WakeGate.playOnResume(lastScreenOn, android.os.SystemClock.elapsedRealtime())) { lastScreenOn = 0; wakeSignal.intValue++ }
     }
 
-    override fun onDestroy() { runCatching { unregisterReceiver(screenOn) }; super.onDestroy() }
+    override fun onDestroy() {
+        runCatching { unregisterReceiver(screenOn) }
+        a11y.removeAccessibilityStateChangeListener(a11yChanged); a11y.removeTouchExplorationStateChangeListener(touchChanged)
+        super.onDestroy()
+    }
+
+    private val a11y by lazy { getSystemService(android.view.accessibility.AccessibilityManager::class.java) }
+    private val a11yChanged = android.view.accessibility.AccessibilityManager.AccessibilityStateChangeListener { quietA11y() }
+    private val touchChanged = android.view.accessibility.AccessibilityManager.TouchExplorationStateChangeListener { quietA11y() }
+    private fun quietA11y() { window.decorView.post { com.bittv.home.platform.ComposeA11y.apply(window.decorView, a11y) } }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)

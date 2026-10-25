@@ -81,6 +81,12 @@ eye sees; P50/P90 are each frame's latency through the pipeline (a frame can tak
 |---|---|---|---|---|---|---|---|
 | Original (5938a85), 3 runs | 30 / 36 / 33 | 100 % | 109 / 109 / 105 | 150 | 29 / 38 / 36 % | 67–217 ms | 65.6 / 64.9 / 66.2 |
 | + background once, posters as one image, rows skip recomposition, banner slide cached in a layer, 3 runs | 56 / 55 / 52 | 23–25 % | 24 / 34 / 27 | 38 | 89 / 91 / 86 % | 50 ms | 11.8 / 13.5 / 12.3 |
+| + Compose's accessibility work only with a screen reader on, 3 runs | 60 / 57 / 59 | 21–24 % | 22 / 22 / 22 | 29 / 27 / 30 | 92 / 96 / 94 % | 50–67 ms | 13.1 / 13.2 / 13.2 |
 
 Experiments on the TV that changed nothing measurable (reverted): no focus glow (`shadow(14.dp)`), no sway, the
-Active section cached in a layer. SurfaceFlinger composes BitTV as one hardware-scaled layer (no GPU composition).
+Active section cached in a layer, the sway read only in the draw phase.
+
+**Accessibility:** a system trace showed Compose's semantics diffing and accessibility events taking ~6 ms of the
+main thread per frame — Compose does that whenever *any* accessibility service is on, here BitTV's Home helper and
+Button Mapper, which only filter keys. `ComposeA11y` hides those from Compose unless a screen reader or touch
+exploration is on (TalkBack keeps working). SurfaceFlinger composes BitTV as one hardware-scaled layer (no GPU composition).

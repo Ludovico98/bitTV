@@ -11,3 +11,8 @@
 -dontwarn com.github.victools.**
 -dontwarn java.lang.reflect.AnnotatedType
 -dontwarn java.lang.reflect.AnnotatedParameterizedType
+# ComposeA11y: the Compose internals it reaches by reflection (names and the two fields)
+-keepclassmembers class androidx.compose.ui.platform.AndroidComposeView { *** composeAccessibilityDelegate; }
+-keepclassmembers class androidx.compose.ui.platform.AndroidComposeViewAccessibilityDelegateCompat { *** _enabledServices; }
+-keepnames class androidx.compose.ui.platform.AndroidComposeView
+-keepnames class androidx.compose.ui.platform.AndroidComposeViewAccessibilityDelegateCompat
