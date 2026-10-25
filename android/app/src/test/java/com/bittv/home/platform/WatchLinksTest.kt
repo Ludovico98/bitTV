@@ -47,10 +47,4 @@ class WatchLinksTest {
         assertEquals("https://www.themoviedb.org/tv/4614/watch?locale=IT", WatchLinks.pageUrl("tv4614", Svc.RAIPLAY))
         assertNull(WatchLinks.pageUrl("longtide", Svc.NETFLIX))   // demo titles have no real page
     }
-
-    @Test fun wakingTheTvPlaysTheAnimationOnlyWhenBitTvIsWhatComesBack() {
-        assertTrue(WakeGate.playOnResume(lastScreenOn = 10_000, now = 12_000))
-        assertEquals(false, WakeGate.playOnResume(lastScreenOn = 10_000, now = 30_000))   // an ordinary return to Home
-        assertEquals(false, WakeGate.playOnResume(lastScreenOn = 0, now = 12_000))        // no wake seen
-    }
 }

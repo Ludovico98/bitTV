@@ -53,9 +53,3 @@ object WatchLinks {
         return u.takeIf { it.count { c -> c == '/' } > 3 }   // a bare home page (https://tv.apple.com) is no use
     }
 }
-
-/** The boot animation also greets a TV woken from standby — when BitTV is what comes back on screen. */
-object WakeGate {
-    const val WINDOW_MS = 5_000L
-    fun playOnResume(lastScreenOn: Long, now: Long): Boolean = lastScreenOn > 0 && now - lastScreenOn in 0..WINDOW_MS
-}

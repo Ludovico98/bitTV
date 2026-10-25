@@ -1,7 +1,11 @@
 package com.bittv.home.platform
 
 import android.accessibilityservice.AccessibilityService
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.os.PowerManager
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import com.bittv.home.MainActivity
@@ -41,7 +45,30 @@ class HomeKeyService : AccessibilityService() {
     private var foreground: String? = null
 
     // the TV shows Google's home at start-up before this service is running, so it can't see it appear: take over now
-    override fun onServiceConnected() = openBitTv()
+    override fun onServiceConnected() {
+        openBitTv()
+        androidx.core.content.ContextCompat.registerReceiver(this, screen,
+            IntentFilter().apply { addAction(Intent.ACTION_SCREEN_OFF); addAction(Intent.ACTION_SCREEN_ON) },
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
+    }
+
+    /**
+     * Standby: this service is never frozen, so it notes the TV going to sleep even when BitTV's process is; on wake
+     * it brings BitTV in front (whatever app was open), where the logo plays — unless BitTV already played it.
+     */
+    private val screen = object : BroadcastReceiver() {
+        override fun onReceive(c: Context, i: Intent) {
+            val power = getSystemService(PowerManager::class.java)
+            when (i.action) {
+                Intent.ACTION_SCREEN_OFF -> wakeGate().markAsleep(power.isInteractive)
+                Intent.ACTION_SCREEN_ON -> if (wakeGate().pending)
+                    startActivity(Intent(c, MainActivity::class.java).setAction(MainActivity.ACTION_WAKE)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+            }
+        }
+    }
+
+    override fun onDestroy() { runCatching { unregisterReceiver(screen) }; super.onDestroy() }
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
         val home = HomeRouting.key(event.keyCode, event.action)

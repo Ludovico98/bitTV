@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.provider.Settings
 import androidx.compose.runtime.mutableIntStateOf
 import com.bittv.home.ui.boot.BootGate
+import com.bittv.home.platform.wakeGate
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import com.bittv.home.ui.root.BitTvRoot
@@ -23,23 +24,26 @@ class MainActivity : ComponentActivity() {
     private val homeSignal = mutableIntStateOf(0)
     private val askSignal = mutableIntStateOf(0)
     private val wakeSignal = mutableIntStateOf(0)
-    /** When the screen last came on (TV woken from standby): BitTV coming back right after plays the boot animation. */
-    private var lastScreenOn = 0L
-    private val screenOn = object : android.content.BroadcastReceiver() {
-        override fun onReceive(c: android.content.Context, i: Intent) { lastScreenOn = android.os.SystemClock.elapsedRealtime() }
+    /** The TV going to standby: the next time BitTV is in front it plays the boot animation (see WakeGate). */
+    private val screenOff = object : android.content.BroadcastReceiver() {
+        override fun onReceive(c: android.content.Context, i: Intent) { wakeGate().markAsleep(interactive()) }
     }
+    private fun interactive() = getSystemService(android.os.PowerManager::class.java).isInteractive
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val graph = (application as BitTvApp).graph
-        // the boot animation plays once per TV boot, not every time the launcher process is recreated;
-        // benchmarks and tests pass skipBoot
+        // the boot animation plays once per TV boot, not every time the launcher process is recreated, and after a
+        // wake from standby even when the process died meanwhile; benchmarks and tests pass skipBoot
+        val woke = wakeGate().consumeWake()
         val skipBoot = intent.getBooleanExtra(EXTRA_SKIP_BOOT, false) ||
-            savedInstanceState != null || !bootGate().shouldPlay(bootCount())
+            !woke && (savedInstanceState != null || !bootGate().shouldPlay(bootCount()))
         val demoCatalog = intent.getBooleanExtra(EXTRA_DEMO_CATALOG, false)
         setContent { BitTvTheme { TvCanvas { WindowBackdrop { BitTvRoot(graph, skipBoot, homeSignal.intValue, demoCatalog, askSignal.intValue, wakeSignal.intValue) } } } }
         // Compose's per-frame accessibility work only when a screen reader is on (see ComposeA11y); re-applied after
         // Compose re-reads the services: on attach (this post runs after it), on every change, and on resume
+        androidx.core.content.ContextCompat.registerReceiver(this, screenOff, android.content.IntentFilter(Intent.ACTION_SCREEN_OFF),
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
         a11y.addAccessibilityStateChangeListener(a11yChanged)
         a11y.addTouchExplorationStateChangeListener(touchChanged)
         quietA11y()
@@ -53,21 +57,21 @@ class MainActivity : ComponentActivity() {
         CompositionLocalProvider(LocalHomeBackdrop provides backdrop, content = content)
     }
 
-    // singleTask: pressing Home while BitTV is already in front arrives here
-    override fun onStart() {
-        super.onStart()
-        androidx.core.content.ContextCompat.registerReceiver(this, screenOn, android.content.IntentFilter(Intent.ACTION_SCREEN_ON),
-            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
+    // going to standby stops BitTV while the TV is already non-interactive (seen on the TCL): that alone marks it,
+    // without waiting for a broadcast a frozen process may get late
+    override fun onStop() {
+        super.onStop()
+        wakeGate().markAsleep(interactive())
     }
 
     override fun onResume() {
         super.onResume()
         quietA11y()
-        if (com.bittv.home.platform.WakeGate.playOnResume(lastScreenOn, android.os.SystemClock.elapsedRealtime())) { lastScreenOn = 0; wakeSignal.intValue++ }
+        if (wakeGate().consumeWake()) wakeSignal.intValue++
     }
 
     override fun onDestroy() {
-        runCatching { unregisterReceiver(screenOn) }
+        runCatching { unregisterReceiver(screenOff) }
         a11y.removeAccessibilityStateChangeListener(a11yChanged); a11y.removeTouchExplorationStateChangeListener(touchChanged)
         super.onDestroy()
     }
@@ -77,6 +81,7 @@ class MainActivity : ComponentActivity() {
     private val touchChanged = android.view.accessibility.AccessibilityManager.TouchExplorationStateChangeListener { quietA11y() }
     private fun quietA11y() { window.decorView.post { com.bittv.home.platform.ComposeA11y.apply(window.decorView, a11y) } }
 
+    // singleTask: pressing Home while BitTV is already in front arrives here
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         if (intent.hasCategory(Intent.CATEGORY_HOME)) homeSignal.intValue++
@@ -91,5 +96,7 @@ class MainActivity : ComponentActivity() {
 
     private fun bootCount(): Int? = runCatching { Settings.Global.getInt(contentResolver, Settings.Global.BOOT_COUNT) }.getOrNull()
 
-    companion object { const val EXTRA_SKIP_BOOT = "skipBoot"; const val EXTRA_DEMO_CATALOG = "demoCatalog"; const val ACTION_ASK = "com.bittv.home.ASK" }
+    companion object { const val EXTRA_SKIP_BOOT = "skipBoot"; const val EXTRA_DEMO_CATALOG = "demoCatalog"; const val ACTION_ASK = "com.bittv.home.ASK"
+        /** Sent by the Home helper when the TV wakes: brings BitTV in front, where onResume plays the logo. */
+        const val ACTION_WAKE = "com.bittv.home.WAKE" }
 }
