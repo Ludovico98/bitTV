@@ -257,7 +257,8 @@ private val GlowBleed = 28.dp
 /**
  * Tiles scrolled left of the glass strip fade out across the gap to the app bar instead of running into it. The
  * fade is a mask over an offscreen layer, so the layer is grown by [GlowBleed] above and below: the focus glow is
- * never cut off square.
+ * never cut off square. Keep the layer: it is also each row's render cache (measured on the TV: drawing the fade as
+ * a plain overlay without the layer made every frame ~15 ms slower, as unchanged rows were redrawn tile by tile).
  */
 private fun Modifier.fadeIntoGap(): Modifier = this
     .layout { m, c ->

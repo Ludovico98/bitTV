@@ -14,9 +14,6 @@ import androidx.compose.ui.graphics.Canvas
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.ImageBitmapConfig
-import androidx.compose.ui.graphics.Shader
-import androidx.compose.ui.graphics.ImageShader
-import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.unit.Density
@@ -26,12 +23,9 @@ import kotlin.math.max
 
 /**
  * Home's background, drawn once into a bitmap the size of the screen. It is the window's background (one bitmap
- * draw per frame instead of a colour fill plus three full-screen gradients, which cost the TV's GPU dearly), and the
- * fades next to the app bar paint matching pieces of it ([shader], in screen coordinates) instead of masking layers.
+ * draw per frame instead of a colour fill plus three full-screen gradients, which cost the TV's GPU dearly).
  */
-class HomeBackdrop(val bitmap: ImageBitmap, val isWindowBackground: Boolean) {
-    fun shader(): Shader = ImageShader(bitmap, TileMode.Clamp, TileMode.Clamp)
-}
+class HomeBackdrop(val bitmap: ImageBitmap, val isWindowBackground: Boolean)
 
 val LocalHomeBackdrop = staticCompositionLocalOf<HomeBackdrop?> { null }
 
