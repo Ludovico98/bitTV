@@ -18,8 +18,6 @@ import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.semantics.SemanticsActions
 import com.bittv.home.data.DemoCatalog
 import com.bittv.home.model.AppEntry
-import com.bittv.home.platform.ExternalDevice
-import com.bittv.home.platform.HdmiPreview
 import com.bittv.home.model.Prefs
 import com.bittv.home.model.Svc
 import com.bittv.home.model.Title
@@ -61,12 +59,12 @@ class HomeFocusTest {
     private var returnToken by mutableIntStateOf(0)
     private var rotation by mutableStateOf(0L)
 
-    private fun setHome(devices: List<ExternalDevice>? = null) = rule.setContent {
+    private fun setHome() = rule.setContent {
         BitTvTheme {
             HomeScreen(
                 HomeState(prefs, DemoCatalog.titles, DemoCatalog.progress, DemoCatalog.apps,
                     DemoCatalog.apps.map { it.id }.toSet() - "paramount", TodayInfo.items(LocalDate.of(2026, 10, 25)),
-                    nowPlaying = null, news = emptyList(), weather = null, devices = devices, rotation = rotation),
+                    nowPlaying = null, news = emptyList(), weather = null, rotation = rotation),
                 actions,
                 topToken = topToken,
                 returnToken = returnToken,
@@ -147,24 +145,6 @@ class HomeFocusTest {
     }
 
     @Test
-    fun theDevicesRowLeavesTheSameRoomUnderItsTilesAsTheOthers() {
-        setHome(); focus("tile:cw:epidemic"); press(Key.DirectionDown)
-        assertEquals("row:dev", focusedRow())
-        press(Key.DirectionUp)   // measured unfocused: a focused tile is scaled up
-        // unclipped (boundsInRoot is cut at the screen's edge, where the Devices row sits)
-        fun bottom(n: SemanticsNode) = n.positionInRoot.y + n.size.height
-        fun gap(row: String): Float {
-            val r = rule.onNodeWithTag("row:$row").fetchSemanticsNode()
-            val tile = rule.onAllNodes(androidx.compose.ui.test.SemanticsMatcher("tile in $row") { n ->
-                n.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("tile:$row:") == true }).fetchSemanticsNodes()
-                .maxBy { it.size.height }
-            return bottom(r) - bottom(tile)
-        }
-        val dev = gap("dev"); val wl = gap("wl")
-        assertTrue("Devices leaves $dev px under its tile, Watch Later $wl", kotlin.math.abs(dev - wl) < 1f)
-    }
-
-    @Test
     fun downFromTheDotsGoesToTheFirstRowAndUpComesBack() {
         setHome(); focus("hero"); press(Key.DirectionDown); press(Key.DirectionDown)
         assertEquals("row:wl", focusedRow())
@@ -234,7 +214,8 @@ class HomeFocusTest {
             focusedRow()?.let { if (visited.last() != it) visited += it }
         }
         rule.mainClock.autoAdvance = true
-        assertEquals(listOf("row:wl", "row:cw", "row:dev", "row:sug", "row:series", "row:movies", "row:comedy", "row:it", "row:free"), visited)
+        assertEquals(listOf("row:wl", "row:cw", "row:comedy", "row:crime", "row:drama", "row:scifi", "row:thriller", "row:animation", "row:docs",
+            "row:it", "row:free"), visited)
     }
 
     @Test
@@ -272,48 +253,25 @@ class HomeFocusTest {
     fun backFromDeepDownReturnsToTheBanner() {
         setHome(); focus("hero"); press(Key.DirectionDown); press(Key.DirectionDown)
         val rest = top("row:wl")
-        press(Key.DirectionDown, 5); assertEquals("row:movies", focusedRow())
+        press(Key.DirectionDown, 5); assertEquals("row:scifi", focusedRow())
         topToken++
         rule.waitForIdle()
         assertEquals("hero", focusedTag())
         assertEquals(rest, top("row:wl"), 0.5f)
     }
 
-    private val ps5 = listOf(ExternalDevice("com.example.none/.Fake/HDMI200004", "PlayStation 5", "HDMI 2", on = true))
-    private fun previewing() = rule.onAllNodesWithTag("preview:${ps5[0].inputId}", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
-
-    // a live HDMI preview puts the TV's whole picture on its HDMI settings: open it only once the Devices row itself
-    // has focus and has kept it for a moment, never for the rows around it or scrolled past
-    @Test
-    fun theHdmiPreviewOpensOnlyOnTheDevicesRowAfterADwell() {
-        setHome(ps5); focus("hero")
-        assertFalse(previewing())
-        press(Key.DirectionDown, 3); assertEquals("row:cw", focusedRow())
-        assertFalse("the row above", previewing())
-        rule.mainClock.autoAdvance = false
-        rule.onRoot().performKeyInput { pressKey(Key.DirectionDown) }
-        frames(3)
-        assertFalse("before the dwell", previewing())
-        rule.mainClock.advanceTimeBy(HdmiPreview.DWELL_MS + 100)
-        rule.mainClock.autoAdvance = true; rule.waitForIdle()
-        assertEquals("row:dev", focusedRow())
-        assertTrue("on the Devices row", previewing())
-        press(Key.DirectionDown); assertEquals("row:sug", focusedRow())
-        assertFalse("moved on", previewing())
-    }
-
-    // 2026-10-25 23:30 on the TV: the half-hour reshuffle replaced Suggested's tiles while Series had focus, and focus
-    // jumped back up into Suggested (its "the focused tile was removed" rescue ran for a row that no longer had focus)
+    // 2026-10-25 23:30 on the TV: the half-hour reshuffle replaced a row's tiles while the next row had focus, and focus
+    // jumped back up into it (its "the focused tile was removed" rescue ran for a row that no longer had focus)
     @Test
     fun theHalfHourReshuffleLeavesFocusWhereItIs() {
         setHome(); focus("hero"); press(Key.DirectionDown, 2)
-        press(Key.DirectionDown, 3); assertEquals("row:sug", focusedRow())
-        press(Key.DirectionDown); assertEquals("row:series", focusedRow())
+        press(Key.DirectionDown, 3); assertEquals("row:crime", focusedRow())
+        press(Key.DirectionDown); assertEquals("row:drama", focusedRow())
         val before = focusedTag()
         rule.runOnIdle { rotation = 57_000 }
         rule.waitForIdle()
-        assertEquals("row:series", focusedRow())
-        assertTrue(before.startsWith("tile:series:"))
+        assertEquals("row:drama", focusedRow())
+        assertTrue(before.startsWith("tile:drama:"))
     }
 
     @Test

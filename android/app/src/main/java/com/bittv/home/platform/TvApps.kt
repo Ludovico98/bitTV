@@ -1,6 +1,5 @@
 package com.bittv.home.platform
 
-import android.media.tv.TvInputManager
 
 /** The TV's own apps behind the top shortcuts and the HDMI tiles (checked on the TCL 55C6K-UK, 2026-10-25). */
 object TvApps {
@@ -12,7 +11,4 @@ object TvApps {
 
     /** Which app shows an HDMI input full screen: TCL's TV app (no chooser with Live Channels), else what there is. */
     fun inputApp(handlers: List<String>): String? = INPUT_APPS.firstOrNull { it in handlers } ?: handlers.firstOrNull()
-
-    /** The preview connects only to a device that is on: connecting sends HDMI-CEC routing, which would wake it. */
-    fun mayPreview(state: Int): Boolean = state == TvInputManager.INPUT_STATE_CONNECTED
 }

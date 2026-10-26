@@ -70,15 +70,16 @@ object TmdbParse {
             c1 = c1, c2 = c2, year = date.take(4).toIntOrNull() ?: 0, score = votes * min(1.0, count / 200.0),
             font = TitleFont.entries[abs(id) % TitleFont.entries.size], blurb = o.optString("overview"),
             art = if (o.isNull("backdrop_path")) null else o.optString("backdrop_path").ifBlank { null },
+            lang = o.optString("original_language"),
         )
     }
 
-    /** One list per (service, type) → one title each, with every service it is on, in first-seen order. */
+    /** One list per (service, type, page or keyword) → one title each, with every service it is on and every tag, in first-seen order. */
     fun merge(lists: List<List<Title>>): List<Title> {
         val byId = LinkedHashMap<String, Title>()
         lists.flatten().forEach { t ->
             val have = byId[t.id]
-            byId[t.id] = if (have == null) t else have.copy(services = (have.services + t.services).distinct())
+            byId[t.id] = if (have == null) t else have.copy(services = (have.services + t.services).distinct(), tags = (have.tags + t.tags).distinct())
         }
         return byId.values.toList()
     }
@@ -115,7 +116,7 @@ object TmdbParse {
             put(JSONObject().put("id", t.id).put("name", t.name).put("type", t.type.name).put("genres", JSONArray(t.genres))
                 .put("services", JSONArray(t.services.map { it.name })).put("c1", t.c1).put("c2", t.c2).put("year", t.year)
                 .put("score", t.score).put("font", t.font.name).put("blurb", t.blurb).put("art", t.art ?: JSONObject.NULL)
-                .put("buy", JSONArray(t.buy.map { it.name })).put("elsewhere", JSONArray(t.elsewhere)))
+                .put("buy", JSONArray(t.buy.map { it.name })).put("elsewhere", JSONArray(t.elsewhere)).put("tags", JSONArray(t.tags)).put("lang", t.lang))
         }
     }.toString()
 
@@ -130,7 +131,7 @@ object TmdbParse {
                 o.getDouble("score"), TitleFont.valueOf(o.getString("font")), o.getString("blurb"),
                 if (o.isNull("art")) null else o.getString("art"),
                 // older caches have neither
-                strings("buy").map { Svc.valueOf(it) }, strings("elsewhere"))
+                strings("buy").map { Svc.valueOf(it) }, strings("elsewhere"), strings("tags"), o.optString("lang"))
         }
     }.getOrNull()
 }

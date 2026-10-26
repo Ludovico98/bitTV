@@ -116,6 +116,40 @@ fun HomeScreen(
     val motion = LocalMotion.current
     val resumed = rememberResumed() && active
     val rows = remember(state) { homeRows(state) }
+    // the rows as shown: his order, which a held OK on a tile lets him change, row by row (as on the app bar)
+    var order by remember(rows) { mutableStateOf(rows) }
+    var moving by remember { mutableStateOf<String?>(null) }
+    var moveToken by remember { mutableIntStateOf(0) }
+    var swallowUp by remember { mutableStateOf(false) }   // the key-up of the press that placed the row
+    fun place() {
+        moving = null; swallowUp = true
+        // rows with nothing to show today keep their place in the saved order
+        val shown = order.map { it.key }; val all = orderedKeys(DEFAULT_ROW_ORDER, state.prefs.rowOrder)
+        val next = shown.iterator()
+        actions.reorderRows(all.map { if (it in shown) next.next() else it })
+    }
+    fun rowKeys(key: String, e: androidx.compose.ui.input.key.KeyEvent): Boolean {
+        val code = e.nativeKeyEvent.keyCode
+        val ok = code == android.view.KeyEvent.KEYCODE_DPAD_CENTER || code == android.view.KeyEvent.KEYCODE_ENTER || code == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER
+        val down = e.type == KeyEventType.KeyDown; val repeat = e.nativeKeyEvent.repeatCount
+        return when {
+            moving == key -> {   // while lifted every key belongs to the move
+                if (down && repeat == 0) when (code) {
+                    android.view.KeyEvent.KEYCODE_DPAD_UP, android.view.KeyEvent.KEYCODE_DPAD_DOWN -> {
+                        val i = order.indexOfFirst { it.key == key }; val j = i + if (code == android.view.KeyEvent.KEYCODE_DPAD_UP) -1 else 1
+                        if (i >= 0 && j in order.indices) { order = order.toMutableList().also { it[i] = order[j]; it[j] = order[i] }; moveToken++ }
+                    }
+                    android.view.KeyEvent.KEYCODE_BACK -> place()
+                    else -> if (ok) place()
+                }
+                true
+            }
+            ok && down && repeat == 1 && moving == null -> { moving = key; true }   // OK held on a tile: lift its row
+            ok && down && repeat > 1 -> true
+            swallowUp && !down && (ok || code == android.view.KeyEvent.KEYCODE_BACK) -> { swallowUp = false; true }
+            else -> false
+        }
+    }
     val banner = remember(state.titles, state.prefs.subs) { bannerTitles(state) }
     var bannerIndex by remember { mutableIntStateOf(0) }
     var focusedSection by remember { mutableStateOf("hero") }
@@ -128,9 +162,10 @@ fun HomeScreen(
     val rowRequesters = remember { mutableMapOf<String, FocusRequester>() }
     var lastRowKey by remember { mutableStateOf<String?>(null) }
     var castOpen by remember { mutableStateOf(false) }
-    var castReturn by remember { mutableStateOf<FocusRequester?>(null) }
-    LaunchedEffect(castOpen) { if (!castOpen) castReturn?.let { castReturn = null; it.requestFocus() } }
-    LaunchedEffect(active) { if (!active) castOpen = false }   // another screen opened: the menu goes
+    var inputsOpen by remember { mutableStateOf(false) }
+    var menuReturn by remember { mutableStateOf<FocusRequester?>(null) }
+    LaunchedEffect(castOpen, inputsOpen) { if (!castOpen && !inputsOpen) menuReturn?.let { menuReturn = null; it.requestFocus() } }
+    LaunchedEffect(active) { if (!active) { castOpen = false; inputsOpen = false } }   // another screen opened: the menu goes
     fun tryFocus(r: FocusRequester?) = r != null && r.requestFocus()
     // where focus goes back to: the last item, else its row (the item may have been removed), else the banner
     fun returnFocus(): Boolean = tryFocus(lastContent) || tryFocus(lastRowKey?.let { rowRequesters[it] }) || tryFocus(heroRequester)
@@ -157,23 +192,12 @@ fun HomeScreen(
     // Vertical page: a LazyColumn whose bring-into-view rule implements the focus line. Lazy layouts take part in
     // focus search (rows beyond the screen are composed on demand), which a hand-translated column cannot do.
     val listState = rememberLazyListState()
-    // read by the rows instead of focusedSection itself: Up/Down then recompose no row unless the Devices row's
-    // "near the focus line" changes
-    val devicesNear by remember(rows) { derivedStateOf {
-        val near = rows.indexOfFirst { it.key == focusedSection }; val dev = rows.indexOfFirst { it.key == "dev" }
-        dev >= 0 && kotlin.math.abs(near - dev) <= 1
-    } }
-    // the Devices row is coming up: read the devices' power again, so a preview only opens for one that is on
-    LaunchedEffect(devicesNear, resumed) { if (devicesNear && resumed) actions.refreshDevices() }
-    // a live HDMI preview puts the whole panel on the HDMI picture settings (local dimming, dynamic backlight on the
-    // device's picture — seen on the TV): only while the Devices row itself has focus
-    val devicesFocused by remember { derivedStateOf { focusedSection == "dev" } }
     val density = LocalDensity.current
     // every item's height as last laid out, by key: how far the page is from its top ([pageScrolled])
     val heights = remember { mutableMapOf<String, Int>() }
-    fun keyAt(i: Int) = when (i) { 0 -> "top"; 1 -> "hero"; else -> rows.getOrNull(i - 2)?.key }
+    fun keyAt(i: Int) = when (i) { 0 -> "top"; 1 -> "hero"; else -> order.getOrNull(i - 2)?.key }
     val pageSpec = remember(density, motion) { PageBringIntoView(density, motion) }
-    pageSpec.firstRowKey = rows.firstOrNull()?.key
+    pageSpec.firstRowKey = order.firstOrNull()?.key
     pageSpec.scrolled = { pageScrolled(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) { i -> keyAt(i)?.let(heights::get) } }
     // Back on Home: focus to the banner. Deep down the list may have disposed it (focus would go nowhere): then
     // straight to the top first
@@ -210,7 +234,8 @@ fun HomeScreen(
                         verticalAlignment = Alignment.CenterVertically) {
                         ShortcutButtons(onFocused = { lastContent = it; lastRowKey = null }, items = listOf(
                             Shortcut("Search", Glyph.SEARCH, searchRequester, actions::openSearch),
-                            Shortcut("Cast", Glyph.CAST) { castReturn = lastContent; castOpen = true; actions.cast() },
+                            Shortcut("Cast", Glyph.CAST) { menuReturn = lastContent; castOpen = true; actions.cast() },
+                            Shortcut("Inputs", Glyph.HDMI) { menuReturn = lastContent; inputsOpen = true },
                             Shortcut("Browser", Glyph.GLOBE, onClick = actions::openBrowser),
                             Shortcut("Media", Glyph.MEDIA, onClick = actions::openMedia),
                             Shortcut("Settings", Glyph.SETTINGS, onClick = actions::openSettings),
@@ -226,7 +251,7 @@ fun HomeScreen(
                             onIndexChange = { bannerIndex = it }, bannerRequester = heroRequester, dots = dotsRequester,
                             // a slide opened from the dots comes back to the dots
                             onDotsFocus = { dotsFocused = it; if (it) { lastContent = dotsRequester; lastRowKey = null } },
-                            dotsDown = rows.firstOrNull()?.let { rowRequesters.getOrPut(it.key) { FocusRequester() } },
+                            dotsDown = order.firstOrNull()?.let { rowRequesters.getOrPut(it.key) { FocusRequester() } },
                             modifier = Modifier.testTag("hero").focusRequester(heroRequester).focusProperties {
                                 right = playRequester
                                 up = searchRequester   // the first shortcut, not whichever is nearest the banner's middle
@@ -236,20 +261,20 @@ fun HomeScreen(
                             ActiveW, BannerH)
                     }
                 }
-                items(rows, key = { it.key }, contentType = { if (it.key == "dev") "dev" else "row" }) { row ->
+                items(order, key = { it.key }, contentType = { "row" }) { row ->
                     HomeRowSection(
                         row, state.prefs.subs, state.apps,
-                        animateDevices = motion.loops && resumed && devicesNear,
                         onOpen = actions::openTitle,
-                        onFocusTitle = {},
-                        onDevice = { key -> rows.firstOrNull { it.key == "dev" }?.items?.filterIsInstance<RowItem.Device>()
-                            ?.firstOrNull { it.key == key }?.inputId?.let(actions::openInput) },
-                        modifier = Modifier.measured(row.key, heights).section(row.key) { focusedSection = it; pageSpec.section = it }.padding(top = RowGap),
+                        modifier = Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null, placementSpec = motion.tween(160))
+                            .onPreviewKeyEvent { rowKeys(row.key, it) }
+                            .measured(row.key, heights).section(row.key) { focusedSection = it; pageSpec.section = it }.padding(top = RowGap),
                         onTileFocused = { lastContent = it; lastRowKey = row.key },
                         rowRequester = rowRequesters.getOrPut(row.key) { FocusRequester() },
-                        previewDevices = resumed && devicesFocused,
-                        onPreviewBlank = actions::previewBlank,
                         ownsFocus = { focusedSection == row.key },
+                        pageMoving = { listState.isScrollInProgress },
+                        lifted = moving == row.key,
+                        dimmed = moving != null && moving != row.key,
+                        moveToken = if (moving == row.key) moveToken else 0,
                     )
                 }
             }
@@ -261,6 +286,11 @@ fun HomeScreen(
             CastMenu(state.tvName, find = if (state.castDevices.isNotEmpty()) { { state.castDevices } } else actions::findCastDevices,
                 onClose = { castOpen = false },
                 Modifier.padding(start = ContentX + RowStartPad + 46.dp, top = 80.dp))
+        }
+        if (inputsOpen) {
+            Box(Modifier.fillMaxSize().background(Color(0x59000000)))
+            InputMenu(find = actions::findInputs, onOpen = { inputsOpen = false; actions.openInput(it.inputId) },
+                onClose = { inputsOpen = false }, Modifier.padding(start = ContentX + RowStartPad + 92.dp, top = 80.dp))
         }
 
         // a small clock once the top bar has scrolled away, over a band of the backdrop: the row scrolling out of view
@@ -322,7 +352,6 @@ private class PageBringIntoView(density: androidx.compose.ui.unit.Density, priva
     private val line = with(density) { 370.dp.toPx() }      // where the first row's tiles rest on screen
     private val safe = with(density) { 30.dp.toPx() }
     private val under = with(density) { TileInset.toPx() }   // the strip below a row's tiles
-    private val devTile = with(density) { 158.dp.toPx() * 1.1f }   // focused PS5 tile, scaled
 
     @Deprecated("Animation is still honoured by the scrollable; kept for the spring feel")
     override val scrollAnimationSpec: androidx.compose.animation.core.AnimationSpec<Float> get() = motion.pageSpring()
@@ -330,9 +359,7 @@ private class PageBringIntoView(density: androidx.compose.ui.unit.Density, priva
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
         if (section == "top" || section == "hero" || section == firstRowKey) return topDistance(scrolled(), containerSize)
         var d = offset - line
-        // the Devices row is laid out by its tallest tile (the PS5 preview), whichever tile is focused
-        val h = if (section == "dev") maxOf(size, devTile) else size
-        val bottom = offset + h + under - d
+        val bottom = offset + size + under - d
         if (bottom > containerSize - safe) d += bottom - (containerSize - safe)
         return d
     }

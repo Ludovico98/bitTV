@@ -117,7 +117,6 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
         }
     }
     var appArt by remember { mutableStateOf<Map<String, ImageBitmap>>(emptyMap()) }
-    var devices by remember { mutableStateOf<List<com.bittv.home.platform.ExternalDevice>>(emptyList()) }
     // Home's picks change every half hour (Watch Later and Continue Watching stay put)
     var rotation by remember { mutableStateOf(com.bittv.home.ui.home.Rotation.slot(System.currentTimeMillis())) }
     LaunchedEffect(demoCatalog) {
@@ -174,9 +173,7 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
                 }.toMap()
             }
             graph.nowPlaying.start()   // what's playing, live, while Home is in front
-            devices = graph.tvInputs.devices()   // and what is plugged in (the PS5), kept current while Home shows
-            graph.tvInputs.watch { devices = graph.tvInputs.devices() }
-            try { graph.catalog.refresh(); awaitCancellation() } finally { graph.nowPlaying.stop(); graph.tvInputs.stop() }
+            try { graph.catalog.refresh(); awaitCancellation() } finally { graph.nowPlaying.stop() }
         }
     }
     // first real catalogue: the demo's Watch Later picks become real titles (read from storage, never the default)
@@ -251,8 +248,9 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
                 runCatching { context.startActivity(i) }
             }
             // off the main thread: a dozen binder calls, made while the page is still moving
-            override fun refreshDevices() { if (!demoCatalog) scope.launch { devices = withContext(Dispatchers.IO) { graph.tvInputs.devices() } } }
-            override fun previewBlank(inputId: String) { if (!demoCatalog) graph.tvInputs.noPicture(inputId) }
+            override fun reorderRows(keys: List<String>) { scope.launch { graph.prefs.setRowOrder(keys) } }
+            // read when the Inputs menu opens; the demo (and the emulator's tests) list stand-ins
+            override suspend fun findInputs() = if (demoCatalog) DemoCatalog.inputs else withContext(Dispatchers.IO) { graph.tvInputs.inputs() }
             override fun openBrowser() { if (!demoCatalog) graph.appsRepo.launchFirst(com.bittv.home.platform.TvApps.BROWSER) }
             // the story in the TV's browser (not whatever else claims bbc.co.uk links)
             override fun openNews(item: NewsItem) {
@@ -290,7 +288,7 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
                         installed = installed, today = TodayInfo.items(LocalDate.now()),
                         nowPlaying = if (demoCatalog) NowPlaying("Midnight Drive", "Neon Coast", 214, 83, true) else nowPlaying,
                         news = news,
-                        weather = weatherNow, devices = if (demoCatalog) null else devices, rotation = if (demoCatalog) 0 else rotation,
+                        weather = weatherNow, rotation = if (demoCatalog) 0 else rotation,
                     ),
                     actions, active = top == Screen.Home, returnToken = returnToken, topToken = topToken,
                 )

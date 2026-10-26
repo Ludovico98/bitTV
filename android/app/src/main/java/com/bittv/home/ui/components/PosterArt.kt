@@ -55,7 +55,10 @@ fun Color.mix(amt: Float): Color {
  */
 @Composable
 fun PosterArt(title: Title, modifier: Modifier = Modifier, titleScale: Float = 1f, showTitle: Boolean = true,
-              imageWidth: Int = 780, cornerRadius: Dp = 9.dp, overlay: @Composable BoxScope.() -> Unit = {}) {
+              imageWidth: Int = 780, cornerRadius: Dp = 9.dp,
+              /** False keeps the drawn poster and starts no download or decode yet (a Home row the page is flying past). */
+              load: Boolean = true,
+              overlay: @Composable BoxScope.() -> Unit = {}) {
     val c1 = Color(title.c1); val c2 = Color(title.c2)
     // the drawn poster only shows while the artwork loads (or when there is none): under a loaded image it was five
     // full-tile gradients drawn for nothing on every frame
@@ -72,7 +75,7 @@ fun PosterArt(title: Title, modifier: Modifier = Modifier, titleScale: Float = 1
             onDrawBehind { if (posterNeedsPlaceholder(title.art != null, loaded)) { drawRect(base); drawRect(low); drawRect(glow); drawRect(streak); drawRect(vignette) } }
         },
     ) {
-        title.art?.let { art ->
+        title.art?.takeIf { load }?.let { art ->
             val ctx = LocalPlatformContext.current
             val cornerPx = with(LocalDensity.current) { cornerRadius.toPx() }
             // the bottom shade (the same as the drawn posters', keeps the title readable) and the corners are baked in

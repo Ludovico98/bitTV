@@ -129,7 +129,7 @@ fun DetailsScreen(
                                 { onPlay(svc) }, Modifier.focusRequester(playFocus).testTag("play"),
                                 leading = { app?.let { a -> AppIcon(a, 20.dp, 20.dp, radius = 5.dp) } })
                             // with nowhere to play it, Watch Later takes the first focus
-                            PillButton(if (saved) "In Watch Later" else "Watch Later", onToggleWatchLater,
+                            PillButton(if (saved) "In Watch List" else "Watch List", onToggleWatchLater,
                                 (if (svc == null) Modifier.focusRequester(playFocus) else Modifier).testTag("watchlater"),
                                 leading = { c -> GlyphIcon(if (saved) Glyph.STAR_FILLED else Glyph.STAR, c, Modifier.size(15.dp)) })
                         }

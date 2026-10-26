@@ -47,11 +47,21 @@ class CatalogRepoTest {
     }
 
     @Test fun freshCacheSkipsTheNetwork() = runTest {
-        val file = tmp.newFile().apply { writeText(TmdbParse.toCache(listOf(real))) }
+        val tagged = real.copy(tags = listOf(com.bittv.home.model.Tags.SITCOM))
+        val file = tmp.newFile().apply { writeText(TmdbParse.toCache(listOf(tagged))) }
         val calls = IntArray(1)
         CatalogRepo(tmdb(emptyList(), calls), file, now = { file.lastModified() + 60_000 }).refresh()
         assertEquals(0, calls[0])
         CatalogRepo(tmdb(listOf(real), calls), file, now = { file.lastModified() + 13 * 3_600_000L }).refresh()
+        assertEquals(1, calls[0])
+    }
+
+    // a copy saved before titles had tags would leave the keyword rows (Sitcom, Anthology…) empty for up to 12 hours
+    @Test fun aFreshCacheWithoutTagsIsReadAgainOncePerRun() = runTest {
+        val file = tmp.newFile().apply { writeText(TmdbParse.toCache(listOf(real))) }
+        val calls = IntArray(1)
+        val repo = CatalogRepo(tmdb(listOf(real), calls), file, now = { file.lastModified() + 60_000 })
+        repo.refresh(); repo.refresh()
         assertEquals(1, calls[0])
     }
 

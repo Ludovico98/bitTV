@@ -12,7 +12,7 @@ class QueryMatcherTest {
     private fun ids(q: String) = QueryMatcher.search(q, DemoCatalog.titles, subs).included.map { it.id }
 
     @Test
-    fun crimeSeries() = assertEquals(listOf("tenements", "commissario", "northernline"), ids("crime series"))
+    fun crimeSeries() = assertEquals(listOf("tenements", "commissario", "northernline", "coldcase", "dockside"), ids("crime series"))
 
     @Test
     fun theLongTide() = assertEquals("longtide", ids("the long tide").first())
@@ -26,7 +26,7 @@ class QueryMatcherTest {
     @Test
     fun netflix() {
         val r = QueryMatcher.search("netflix", DemoCatalog.titles, subs).included
-        assertEquals(6, r.size)
+        assertEquals(11, r.size)
         assertTrue(r.all { Svc.NETFLIX in it.services })
     }
 

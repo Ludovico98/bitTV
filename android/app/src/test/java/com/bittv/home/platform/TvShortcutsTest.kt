@@ -44,9 +44,4 @@ class TvAppsTest {
         assertEquals(null, TvApps.inputApp(emptyList()))
     }
 
-    @Test fun previewOnlyConnectsToADeviceThatIsOn() {
-        assertTrue(TvApps.mayPreview(android.media.tv.TvInputManager.INPUT_STATE_CONNECTED))
-        assertFalse(TvApps.mayPreview(android.media.tv.TvInputManager.INPUT_STATE_CONNECTED_STANDBY))
-        assertFalse(TvApps.mayPreview(android.media.tv.TvInputManager.INPUT_STATE_DISCONNECTED))
     }
-}

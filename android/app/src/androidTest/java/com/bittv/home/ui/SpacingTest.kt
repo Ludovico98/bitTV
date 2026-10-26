@@ -61,8 +61,8 @@ class SpacingTest {
     fun everyRowsTilesSitTheSameDistanceFromEachEdgeOfTheirStrip() {
         setHome()
         rule.onNodeWithTag("tile:cw:epidemic").performSemanticsAction(SemanticsActions.RequestFocus); rule.waitForIdle()
-        press(Key.DirectionDown); press(Key.DirectionUp)   // the Devices row on screen, nothing focused in wl or dev
-        for (row in listOf("wl", "dev")) {
+        press(Key.DirectionDown); press(Key.DirectionUp)   // the next row on screen, nothing focused in wl or it
+        for (row in listOf("wl", "comedy")) {
             val strip = node("strip:$row")
             val ts = tiles("tile:$row:")
             val tall = ts.maxBy { it.size.height }

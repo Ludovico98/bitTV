@@ -4,7 +4,6 @@ import com.bittv.home.data.DemoCatalog
 import com.bittv.home.model.Prefs
 import com.bittv.home.model.isAvailable
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -12,17 +11,18 @@ class RotationTest {
     private fun state(slot: Long) = HomeState(Prefs(), DemoCatalog.titles, DemoCatalog.progress, DemoCatalog.apps, emptySet(),
         emptyList(), null, emptyList(), null, rotation = slot)
     private fun row(slot: Long, key: String) = homeRows(state(slot)).first { it.key == key }.items.map { it.key }
+    /** Every pick on Home outside his two lists, row by row. */
+    private fun picks(slot: Long) = homeRows(state(slot)).filter { it.key != "wl" && it.key != "cw" }.map { it.key to it.items.map { i -> i.key } }
 
     @Test fun theSameHalfHourAlwaysLooksTheSame() {
         assertEquals(bannerTitles(state(57_000)), bannerTitles(state(57_000)))
-        assertEquals(row(57_000, "sug"), row(57_000, "sug"))
+        assertEquals(picks(57_000), picks(57_000))
     }
 
     @Test fun eachHalfHourBringsDifferentPicks() {
         val slots = (57_000L..57_005L)
         assertTrue("banner changes", slots.map { bannerTitles(state(it)).map { t -> t.id } }.toSet().size > 1)
-        assertTrue("suggested changes", slots.map { row(it, "sug") }.toSet().size > 1)
-        assertNotEquals(row(57_000, "series"), row(57_001, "series"))
+        assertTrue("the rows change", slots.map { picks(it) }.toSet().size > 1)
     }
 
     @Test fun theBannerStaysAmongTheBestRated() {

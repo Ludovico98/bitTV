@@ -83,7 +83,7 @@ fun SettingsScreen(
             }
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 OptionRow("Replay boot animation", Modifier.width(251.dp), value = "Play", onClick = onReplayBoot)
-                OptionRow("Reset Watch Later", Modifier.width(251.dp), value = "Reset", onClick = { scope.launch { repo.clearWatchLater() } })
+                OptionRow("Reset Watch List", Modifier.width(251.dp), value = "Reset", onClick = { scope.launch { repo.clearWatchLater() } })
                 OptionRow("Remote shortcuts", Modifier.width(251.dp).testTag("opt:remote").focusRequester(remoteButton), value = "Show",
                     onClick = { guide = true })
             }

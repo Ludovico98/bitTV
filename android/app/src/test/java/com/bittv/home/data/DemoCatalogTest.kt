@@ -12,9 +12,9 @@ class DemoCatalogTest {
     private val byId = DemoCatalog.titles.associateBy { it.id }
 
     @Test
-    fun catalogueHas34Titles() {
-        assertEquals(34, DemoCatalog.titles.size)
-        assertEquals(34, byId.size) // ids are unique
+    fun catalogueHas53Titles() {
+        assertEquals(53, DemoCatalog.titles.size)
+        assertEquals(53, byId.size) // ids are unique
     }
 
     @Test

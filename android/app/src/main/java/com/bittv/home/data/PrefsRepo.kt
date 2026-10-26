@@ -20,6 +20,7 @@ class PrefsRepo(private val store: DataStore<Preferences>) {
         val guides = booleanPreferencesKey("overscan_guides")
         val appOrder = stringPreferencesKey("app_order")
         val hiddenApps = stringSetPreferencesKey("hidden_apps")
+        val rowOrder = stringPreferencesKey("row_order")
         val seenApps = stringSetPreferencesKey("seen_apps")
     }
 
@@ -33,6 +34,7 @@ class PrefsRepo(private val store: DataStore<Preferences>) {
             overscanGuides = p[K.guides] ?: defaults.overscanGuides,
             appOrder = p[K.appOrder]?.split('|')?.filter { it.isNotEmpty() } ?: defaults.appOrder,
             hiddenApps = p[K.hiddenApps] ?: defaults.hiddenApps,
+            rowOrder = p[K.rowOrder]?.split('|')?.filter { it.isNotEmpty() } ?: defaults.rowOrder,
             seenApps = p[K.seenApps],
         )
     }
@@ -62,6 +64,8 @@ class PrefsRepo(private val store: DataStore<Preferences>) {
     suspend fun setAnimations(on: Boolean) { store.edit { it[K.animations] = on } }
     suspend fun setOverscanGuides(on: Boolean) { store.edit { it[K.guides] = on } }
     suspend fun setAppOrder(ids: List<String>) { store.edit { it[K.appOrder] = ids.joinToString("|") } }
+
+    suspend fun setRowOrder(keys: List<String>) { store.edit { it[K.rowOrder] = keys.joinToString("|") } }
 
     /** The app's switch in Settings: on the app bar or off it. */
     suspend fun toggleAppShown(id: String) {

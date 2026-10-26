@@ -39,10 +39,15 @@ class CatalogRepo(
     )
     val state: StateFlow<State> = _state.asStateFlow()
 
+    private var fetched = false
+
     suspend fun refresh() {
         val src = source ?: return
-        if (_state.value.source == Source.TMDB && now() - cacheFile.lastModified() < MAX_AGE_MS) return
+        // a copy saved before titles had tags (the keyword rows) is read again whatever its age, once per run
+        val st = _state.value
+        if (st.source == Source.TMDB && now() - cacheFile.lastModified() < MAX_AGE_MS && (fetched || st.titles.any { it.tags.isNotEmpty() })) return
         val titles = src.load() ?: return
+        fetched = true
         _state.value = tmdbState(titles)
         withContext(Dispatchers.IO) { cacheFile.writeText(TmdbParse.toCache(titles)) }
     }

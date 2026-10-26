@@ -84,6 +84,45 @@ object DemoCatalog {
             "Twelve minutes to stop a bridge from falling."),
         T("spacepuppies", "Space Puppies", TitleType.SERIES, listOf("Kids", "Animation"), listOf(Svc.DISNEY), 0xFF1A1446, 0xFFFFE066, 2025, 7.3, TitleFont.INTER,
             "Three puppies, one rocket, a galaxy of snacks."),
+        // more of each kind, so the demo Home has a full stack of rows (each title shows in one row only)
+        T("ironpass", "Iron Pass", TitleType.SERIES, listOf("Action & Adventure", "Drama"), listOf(Svc.PRIME), 0xFF2A1A12, 0xFFE07B39, 2025, 7.2, TitleFont.OSWALD,
+            "A mountain rescue team takes the jobs nobody else will."),
+        T("runway", "Last Runway", TitleType.MOVIE, listOf("Action", "Thriller"), listOf(Svc.NETFLIX), 0xFF1B1F2E, 0xFFE8B04A, 2024, 6.9, TitleFont.BEBAS,
+            "A grounded pilot has one night to land a hijacked cargo jet."),
+        T("saltroad", "The Salt Road", TitleType.MOVIE, listOf("Adventure"), listOf(Svc.DISNEY), 0xFF2E2414, 0xFFF2D27A, 2023, 7.0, TitleFont.PLAYFAIR,
+            "Two sisters cross the desert their grandmother crossed sixty years before."),
+        T("quietwater", "Quiet Water", TitleType.SERIES, listOf("Drama"), listOf(Svc.NOW), 0xFF14232B, 0xFF7FB7C8, 2025, 7.1, TitleFont.PLAYFAIR,
+            "A fishing town keeps the secret of the summer the river flooded."),
+        T("ledger", "The Ledger", TitleType.SERIES, listOf("Drama"), listOf(Svc.APPLETV), 0xFF1F1A14, 0xFFCDA56B, 2024, 6.8, TitleFont.INTER,
+            "Three generations, one family bank, and the year it nearly fell."),
+        T("homefront", "Homefront", TitleType.MOVIE, listOf("Drama"), listOf(Svc.PRIME), 0xFF221A1F, 0xFFD58A8A, 2022, 6.7, TitleFont.OSWALD,
+            "A soldier comes back to a house that learned to live without him."),
+        T("coldcase", "Cold Case Nine", TitleType.SERIES, listOf("Crime"), listOf(Svc.NETFLIX), 0xFF11171F, 0xFF5D8FB5, 2025, 7.3, TitleFont.BEBAS,
+            "A detective reopens the case that ended her father's career."),
+        T("alibi", "Alibi", TitleType.MOVIE, listOf("Crime", "Mystery"), listOf(Svc.NOW), 0xFF1A1414, 0xFFB5523F, 2024, 6.9, TitleFont.PLAYFAIR,
+            "Everyone at the wedding had a reason. Only one had a plan."),
+        T("dockside", "Dockside", TitleType.SERIES, listOf("Crime", "Drama"), listOf(Svc.ITVX), 0xFF14191C, 0xFF8FA6B0, 2023, 7.0, TitleFont.INTER,
+            "Customs officers on the night shift at Britain's busiest port."),
+        T("orbitfall", "Orbitfall", TitleType.MOVIE, listOf("Science Fiction"), listOf(Svc.APPLETV), 0xFF0E1530, 0xFF6C8CFF, 2025, 7.1, TitleFont.BEBAS,
+            "A station falls out of orbit with forty people and one pilot aboard."),
+        T("signal", "The Signal", TitleType.SERIES, listOf("Sci-Fi & Fantasy"), listOf(Svc.NETFLIX), 0xFF101C24, 0xFF4FD1C5, 2024, 6.9, TitleFont.OSWALD,
+            "A radio telescope picks up a voice that knows the astronomers' names."),
+        T("harvest", "Harvest Moon", TitleType.MOVIE, listOf("Science Fiction", "Drama"), listOf(Svc.DISNEY), 0xFF1C1A10, 0xFFE3C35A, 2023, 6.8, TitleFont.PLAYFAIR,
+            "The first farm on the Moon has its first bad year."),
+        T("paperfox", "Paper Fox", TitleType.MOVIE, listOf("Animation", "Family"), listOf(Svc.DISNEY), 0xFF2A1810, 0xFFFF9B54, 2025, 7.2, TitleFont.INTER,
+            "A fox folded from a map sets out to find the place it shows."),
+        T("pixelpals", "Pixel Pals", TitleType.SERIES, listOf("Animation", "Comedy"), listOf(Svc.NETFLIX), 0xFF1A1030, 0xFFB98CFF, 2024, 6.7, TitleFont.BEBAS,
+            "Two game characters who refuse to stay in their game."),
+        T("airship", "The Airship", TitleType.MOVIE, listOf("Animation", "Adventure"), listOf(Svc.PRIME), 0xFF0E2030, 0xFF6EC1FF, 2023, 6.9, TitleFont.OSWALD,
+            "A girl and her grandfather's airship, one last flight."),
+        T("deepblue", "The Deep Blue", TitleType.SERIES, listOf("Documentary"), listOf(Svc.NETFLIX), 0xFF061826, 0xFF2EA6D6, 2025, 7.4, TitleFont.PLAYFAIR,
+            "Five years filming the oceans' least-known places."),
+        T("makers", "Makers", TitleType.SERIES, listOf("Documentary"), listOf(Svc.NOW), 0xFF1E1A16, 0xFFD7B98E, 2024, 6.9, TitleFont.INTER,
+            "Craftspeople who still make things the slow way."),
+        T("thetrack", "The Track", TitleType.MOVIE, listOf("Documentary"), listOf(Svc.APPLETV), 0xFF161616, 0xFFE34B4B, 2023, 7.0, TitleFont.BEBAS,
+            "A season inside a small racing team that refuses to give up."),
+        T("lungomare", "Lungomare", TitleType.SERIES, listOf("Drama"), listOf(Svc.RAIPLAY), 0xFF16242A, 0xFF8FD3E0, 2025, 6.8, TitleFont.PLAYFAIR,
+            "Un'estate al mare, tre famiglie e un segreto."),
     )
 
     val progress: List<Progress> = listOf(
@@ -97,6 +136,12 @@ object DemoCatalog {
     )
 
     // Package names to verify on the TV with `pm list packages` (plan 2); the first installed one wins.
+    /** The Inputs menu on the demo: a named device, and a port whose device gave no name. */
+    val inputs = listOf(
+        com.bittv.home.platform.HdmiInput("demo/HDMI200004", "PlayStation 5", "HDMI 2"),
+        com.bittv.home.platform.HdmiInput("demo/HW15", null, "HDMI 1"),
+    )
+
     /** The Cast menu's devices until plan 2 finds them on the network. */
     val castDevices: List<CastDevice> = listOf(
         CastDevice("iphone", "Ludovico’s iPhone", CastDevice.Kind.IPHONE),

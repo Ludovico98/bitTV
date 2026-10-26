@@ -38,7 +38,18 @@ data class Title(
     val buy: List<Svc> = emptyList(),
     /** Where else it streams or sells that isn't one of his apps ("Crunchyroll", "Sky Store"). */
     val elsewhere: List<String> = emptyList(),
+    /** Kinds TMDB's genres don't name, from its keywords: [Tags]. */
+    val tags: List<String> = emptyList(),
+    /** The original language (ISO 639-1, "it"); empty when unknown (the demo's titles). */
+    val lang: String = "",
 )
+
+/** Title.tags: the Home rows for kinds of show that TMDB marks with keywords rather than genres. */
+object Tags {
+    const val SITCOM = "sitcom"; const val PROCEDURAL = "procedural"; const val ANTHOLOGY = "anthology"
+    const val LIMITED = "limited"; const val BIOGRAPHY = "biography"; const val HORROR = "horror"
+    const val ROMANCE = "romance"; const val THRILLER = "thriller"
+}
 
 /** A TMDB image URL at one of its fixed widths (300, 780, 1280). */
 fun tmdbImage(path: String, width: Int): String = "https://image.tmdb.org/t/p/w$width$path"
@@ -55,6 +66,8 @@ data class Prefs(
     val overscanGuides: Boolean = false,
     /** His order for the app bar (ids); empty = the default order. */
     val appOrder: List<String> = emptyList(),
+    /** His order for the Home rows (keys); empty = the default order. */
+    val rowOrder: List<String> = emptyList(),
     /** Apps switched off the app bar in Settings (ids). */
     val hiddenApps: Set<String> = emptySet(),
     /** Every app BitTV has met (see AppShelf); null until the TV's apps were first read. */
