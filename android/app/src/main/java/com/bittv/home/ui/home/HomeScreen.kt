@@ -105,7 +105,6 @@ fun HomeScreen(
     state: HomeState,
     actions: HomeActions,
     modifier: Modifier = Modifier,
-    assistantOverlay: (@Composable () -> Unit)? = null,
     now: () -> LocalDateTime = { LocalDateTime.now() },
     /** False while another screen covers Home: its loops pause. */
     active: Boolean = true,
@@ -126,7 +125,6 @@ fun HomeScreen(
     val searchRequester = remember { FocusRequester() }
     var lastContent by remember { mutableStateOf<FocusRequester?>(null) }   // where Right from the app bar (and Back) return
     val playRequester = remember { FocusRequester() }
-    val overlayRequester = remember { FocusRequester() }
     val rowRequesters = remember { mutableMapOf<String, FocusRequester>() }
     var lastRowKey by remember { mutableStateOf<String?>(null) }
     var castOpen by remember { mutableStateOf(false) }
@@ -230,12 +228,12 @@ fun HomeScreen(
                             onDotsFocus = { dotsFocused = it; if (it) { lastContent = dotsRequester; lastRowKey = null } },
                             dotsDown = rows.firstOrNull()?.let { rowRequesters.getOrPut(it.key) { FocusRequester() } },
                             modifier = Modifier.testTag("hero").focusRequester(heroRequester).focusProperties {
-                                right = if (assistantOverlay != null) overlayRequester else playRequester
+                                right = playRequester
                                 up = searchRequester   // the first shortcut, not whichever is nearest the banner's middle
                             })
                         Spacer(Modifier.width(20.dp))
                         ActiveSection(state.nowPlaying, state.news.firstOrNull(), state.today, actions, playRequester,
-                            ActiveW, BannerH, overlay = assistantOverlay, overlayFocus = overlayRequester)
+                            ActiveW, BannerH)
                     }
                 }
                 items(rows, key = { it.key }, contentType = { if (it.key == "dev") "dev" else "row" }) { row ->

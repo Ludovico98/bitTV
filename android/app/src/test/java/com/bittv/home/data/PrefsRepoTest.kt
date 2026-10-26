@@ -12,7 +12,6 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -32,7 +31,6 @@ class PrefsRepoTest {
         assertEquals(Svc.entries.toSet() - Svc.PARAMOUNT, p.subs)
         assertEquals(listOf("longtide", "loworbit", "grandeur", "commissario", "static"), p.watchLater)
         assertTrue(p.animations)
-        assertNull(p.voice)
         assertFalse(p.overscanGuides)
         assertEquals(Prefs(), p)
         scope.cancel()
@@ -56,14 +54,12 @@ class PrefsRepoTest {
         val r1 = repo(file, s1)
         r1.setAnimations(false)
         r1.toggleSub(Svc.PARAMOUNT)
-        r1.setVoice("UK English Female")
         r1.clearWatchLater()
         s1.cancel()
         val s2 = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
         val p = repo(file, s2).prefs.first()
         assertFalse(p.animations)
         assertTrue(Svc.PARAMOUNT in p.subs)
-        assertEquals("UK English Female", p.voice)
         assertEquals(emptyList<String>(), p.watchLater)
         s2.cancel()
     }

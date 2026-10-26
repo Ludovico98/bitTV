@@ -27,12 +27,11 @@ class HomeRoutingTest {
 }
 
 class MicRoutingTest {
-    @Test fun micIsBitTvsOnlyWhileBitTvIsInFront() {
-        for (code in listOf(KeyEvent.KEYCODE_SEARCH, KeyEvent.KEYCODE_VOICE_ASSIST, KeyEvent.KEYCODE_ASSIST)) {
-            assertEquals(HomeRouting.Key.SWALLOW, HomeRouting.mic(code, KeyEvent.ACTION_DOWN, "com.bittv.home"))
-            assertEquals(HomeRouting.Key.ASK_BITTV, HomeRouting.mic(code, KeyEvent.ACTION_UP, "com.bittv.home"))
-            assertEquals(HomeRouting.Key.PASS, HomeRouting.mic(code, KeyEvent.ACTION_UP, "com.netflix.ninja"))   // Google, inside apps
-        }
-        assertEquals(HomeRouting.Key.PASS, HomeRouting.mic(KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.ACTION_UP, "com.bittv.home"))
+    /** BitTV no longer answers questions itself: the mic is Google Assistant's everywhere, BitTV included. */
+    @Test fun micIsAlwaysGoogleAssistants() {
+        for (code in listOf(KeyEvent.KEYCODE_SEARCH, KeyEvent.KEYCODE_VOICE_ASSIST, KeyEvent.KEYCODE_ASSIST))
+            for (action in listOf(KeyEvent.ACTION_DOWN, KeyEvent.ACTION_UP))
+                assertEquals(HomeRouting.Key.PASS, HomeRouting.key(code, action))
+        assertEquals(listOf("PASS", "SWALLOW", "OPEN_BITTV"), HomeRouting.Key.entries.map { it.name })   // no "ask BitTV"
     }
 }

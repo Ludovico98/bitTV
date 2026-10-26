@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,34 +56,16 @@ import com.bittv.home.ui.theme.Ink2
 import com.bittv.home.ui.theme.Ink3
 import com.bittv.home.ui.theme.Type
 
-/**
- * The active section: Spotify now playing with controls, a news headline and information about the day.
- * Its size never changes; [overlay] (the Assistant's answers) replaces the content inside the same box.
- */
+/** The active section: Spotify now playing with controls, a news headline and information about the day. Its size never changes. */
 @Composable
 fun ActiveSection(
     nowPlaying: NowPlaying?, news: NewsItem?, today: List<TodayItem>, actions: HomeActions, playRequester: FocusRequester,
-    width: Dp, height: Dp, modifier: Modifier = Modifier, overlay: (@Composable () -> Unit)? = null,
-    overlayFocus: FocusRequester = remember { FocusRequester() },
+    width: Dp, height: Dp, modifier: Modifier = Modifier,
 ) {
-    var sectionFocused by remember { mutableStateOf(false) }
-    var overlayHadFocus by remember { mutableStateOf(false) }
-    // written during composition on purpose: when the answer is removed, the focus callback fired by its removal
-    // must already see "no overlay", so it doesn't erase the fact that the answer had focus
-    val shown = remember { BooleanArray(1) }
-    shown[0] = overlay != null
-    LaunchedEffect(overlay != null) {
-        // an answer replaces the Spotify/news controls: if focus was on them it moves to the answer...
-        if (overlay != null && sectionFocused) overlayFocus.requestFocus()
-        // ...and back to the controls when the answer goes away (OK, Back or its 30 s), never left on nothing
-        if (overlay == null && overlayHadFocus) { overlayHadFocus = false; playRequester.requestFocus() }
-    }
     Box(
         modifier.testTag("active").size(width, height).clip(RoundedCornerShape(17.dp))
-            .background(Color(0x12FFFFFF)).border(1.dp, GlassLine, RoundedCornerShape(17.dp))
-            .onFocusChanged { if (shown[0]) overlayHadFocus = it.hasFocus else sectionFocused = it.hasFocus },
+            .background(Color(0x12FFFFFF)).border(1.dp, GlassLine, RoundedCornerShape(17.dp)),
     ) {
-        if (overlay != null) { Box(Modifier.focusRequester(overlayFocus)) { overlay() }; return@Box }
         Column(Modifier.fillMaxSize().padding(horizontal = 13.dp, vertical = 11.dp)) {
             NowPlayingBlock(nowPlaying, actions, playRequester)
             Divider()

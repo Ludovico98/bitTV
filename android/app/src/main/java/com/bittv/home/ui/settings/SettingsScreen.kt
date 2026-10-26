@@ -38,11 +38,11 @@ import com.bittv.home.ui.theme.GlassLine
 import com.bittv.home.ui.theme.Type
 import kotlinx.coroutines.launch
 
-/** Settings: subscriptions, the Assistant's voice, and how BitTV looks and moves. Every change is saved at once. */
+/** Settings: how BitTV looks and moves, and the way into the TV's own settings. Every change is saved at once. */
 @Composable
 fun SettingsScreen(
-    prefs: Prefs, repo: PrefsRepo, apps: List<AppEntry>, voices: List<String>,
-    onSample: () -> Unit, onReplayBoot: () -> Unit, onBack: () -> Unit, onTvSettings: () -> Unit = {},
+    prefs: Prefs, repo: PrefsRepo, apps: List<AppEntry>,
+    onReplayBoot: () -> Unit, onBack: () -> Unit, onTvSettings: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     val first = remember { FocusRequester() }
@@ -64,20 +64,9 @@ fun SettingsScreen(
         ) {
             Text("Settings", style = Type.Title.copy(fontSize = 22.sp))
             Text("Suggested, the banner and Search show titles from the apps installed on this TV.", style = Type.Caption)
-            Section("Google Assistant")
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                OptionRow("Voice", Modifier.width(509.dp).testTag("opt:voice").focusRequester(first), value = prefs.voice ?: "Device default", onClick = {
-                    if (voices.isNotEmpty()) {
-                        val next = voices[(voices.indexOf(prefs.voice) + 1) % voices.size]
-                        scope.launch { repo.setVoice(next) }
-                    }
-                    onSample()
-                })
-                OptionRow("Hear a sample", Modifier.width(252.dp), value = "Play", onClick = onSample)
-            }
             Section("Experience")
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.padding(bottom = 7.dp)) {
-                OptionRow("Animations", Modifier.width(251.dp).testTag("opt:animations"), checked = prefs.animations,
+                OptionRow("Animations", Modifier.width(251.dp).testTag("opt:animations").focusRequester(first), checked = prefs.animations,
                     onClick = { scope.launch { repo.setAnimations(!prefs.animations) } })
                 OptionRow("Overscan guides", Modifier.width(251.dp).testTag("opt:guides"), checked = prefs.overscanGuides,
                     onClick = { scope.launch { repo.setOverscanGuides(!prefs.overscanGuides) } })

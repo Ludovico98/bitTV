@@ -1,9 +1,6 @@
 package com.bittv.home.ui
 
 import android.content.Intent
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsNode
@@ -13,8 +10,8 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.junit4.AndroidComposeTestRule
-import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
@@ -26,16 +23,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import com.bittv.home.BitTvApp
 import com.bittv.home.MainActivity
-import com.bittv.home.assistant.AssistantState
-import com.bittv.home.data.DemoCatalog
-import com.bittv.home.model.AppEntry
 import com.bittv.home.model.Prefs
-import com.bittv.home.model.Title
-import com.bittv.home.ui.assistant.AssistantArea
-import com.bittv.home.ui.home.HomeActions
-import com.bittv.home.ui.home.HomeScreen
-import com.bittv.home.ui.home.HomeState
-import com.bittv.home.ui.theme.BitTvTheme
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -104,13 +92,20 @@ class ReviewFixesAppTest {
     }
 
     @Test
-    fun backClosesAnOpenPageBeforeAHiddenAnswer() {
-        press(Key.M)
-        rule.waitUntil(8_000) { rule.onAllNodesWithTag("assist").fetchSemanticsNodes().isNotEmpty() }
-        rule.onNodeWithTag("sc:Search").performClick()
-        rule.onNodeWithTag("query").assertExists()   // also lets the click's recomposition finish before Back
-        back()
-        rule.onAllNodesWithTag("query").assertCountEquals(0)
+    fun theMicOnHomeNoLongerAnswersInTheActiveSection() {
+        press(Key.M); press(Key.Search)
+        rule.mainClock.advanceTimeBy(1_000); rule.waitForIdle()
+        rule.onAllNodesWithTag("assist").assertCountEquals(0)
+        rule.onNodeWithTag("ctl:play").assertExists()   // Spotify, the news and the day stay in the box
+    }
+
+    @Test
+    fun settingsHasNoGoogleAssistantSection() {
+        rule.onNodeWithTag("sc:Settings").performClick()
+        rule.onNodeWithTag("opt:animations").assertExists()
+        rule.onAllNodesWithText("Google Assistant", substring = true, ignoreCase = true).assertCountEquals(0)
+        rule.onAllNodesWithTag("opt:voice").assertCountEquals(0)
+        rule.onAllNodesWithText("Hear a sample").assertCountEquals(0)
     }
 
     @Test
@@ -130,30 +125,5 @@ class ReviewFixesAppTest {
         rule.waitForIdle()
         rule.waitUntil(5_000) { rule.onAllNodesWithTag("query").fetchSemanticsNodes().isEmpty() }
         assertEquals("hero", focusedTags()?.first())
-    }
-}
-
-/** Dismissing the Assistant while it has focus must hand focus back to the controls it covered. */
-class AssistantFocusTest {
-    @get:Rule val rule = createComposeRule()
-
-    @Test
-    fun dismissingAFocusedAnswerReturnsFocusToTheControls() {
-        var showing by mutableStateOf(false)
-        val actions = object : HomeActions {
-            override fun openTitle(t: Title) {}; override fun openApp(a: AppEntry) {}
-            override fun openSearch() {}; override fun openSettings() {}; override fun toggleWatchLater(t: Title) {}
-        }
-        rule.setContent {
-            BitTvTheme {
-                HomeScreen(HomeState(Prefs(), DemoCatalog.titles, DemoCatalog.progress, DemoCatalog.apps, emptySet(), emptyList(), null, emptyList(), null),
-                    actions, assistantOverlay = if (showing) { { AssistantArea(AssistantState.Listening("hi"), onDismiss = { showing = false }) } } else null)
-            }
-        }
-        rule.onNodeWithTag("ctl:play").performSemanticsAction(SemanticsActions.RequestFocus); rule.waitForIdle()
-        showing = true; rule.waitForIdle()
-        assertEquals("assist", rule.onNode(isFocused()).fetchSemanticsNode().let(::tagsUp).first())
-        rule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }; rule.waitForIdle()
-        assertEquals("ctl:play", rule.onAllNodes(isFocused()).fetchSemanticsNodes().firstOrNull()?.let(::tagsUp)?.first())
     }
 }

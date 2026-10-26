@@ -14,17 +14,9 @@ import com.bittv.home.MainActivity
 /** The Home decisions, pure so they are tested on the JVM. */
 object HomeRouting {
     const val GOOGLE_HOME = "com.google.android.apps.tv.launcherx"
-    enum class Key { PASS, SWALLOW, OPEN_BITTV, ASK_BITTV }
-    private val MIC = setOf(KeyEvent.KEYCODE_SEARCH, KeyEvent.KEYCODE_VOICE_ASSIST, KeyEvent.KEYCODE_ASSIST)
+    enum class Key { PASS, SWALLOW, OPEN_BITTV }
 
-    /** The remote's mic is BitTV's (answers in the active section) only while BitTV is in front; in apps it stays Google's. */
-    fun mic(code: Int, action: Int, foreground: String?): Key = when {
-        code !in MIC || foreground != "com.bittv.home" -> Key.PASS
-        action == KeyEvent.ACTION_UP -> Key.ASK_BITTV
-        else -> Key.SWALLOW
-    }
-
-    /** Home is taken (down swallowed, BitTV opened on release); every other key goes on as usual. */
+    /** Home is taken (down swallowed, BitTV opened on release); every other key, the mic included (Google Assistant), goes on as usual. */
     fun key(code: Int, action: Int): Key = when {
         code != KeyEvent.KEYCODE_HOME -> Key.PASS
         action == KeyEvent.ACTION_UP -> Key.OPEN_BITTV
@@ -42,9 +34,6 @@ object HomeRouting {
  * restart, or when an app sends the TV "home"). Enabled once by install.sh.
  */
 class HomeKeyService : AccessibilityService() {
-    /** The app in front, from window changes: the mic is BitTV's only while BitTV is. */
-    private var foreground: String? = null
-
     // the TV shows Google's home at start-up before this service is running, so it can't see it appear: take over now
     override fun onServiceConnected() {
         openBitTv()
@@ -70,20 +59,15 @@ class HomeKeyService : AccessibilityService() {
     override fun onDestroy() { runCatching { unregisterReceiver(screen) }; super.onDestroy() }
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
-        val home = HomeRouting.key(event.keyCode, event.action)
-        val r = if (home != HomeRouting.Key.PASS) home else HomeRouting.mic(event.keyCode, event.action, foreground)
-        return when (r) {
+        return when (HomeRouting.key(event.keyCode, event.action)) {
             HomeRouting.Key.PASS -> false
             HomeRouting.Key.SWALLOW -> true
             HomeRouting.Key.OPEN_BITTV -> { openBitTv(); true }
-            HomeRouting.Key.ASK_BITTV -> { startActivity(Intent(this, MainActivity::class.java).setAction(MainActivity.ACTION_ASK)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)); true }
         }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         if (event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
-        if (event.className?.toString()?.endsWith("Activity") == true) foreground = event.packageName?.toString()
         if (HomeRouting.replaceWindow(event.packageName, event.className)) openBitTv()
     }
 

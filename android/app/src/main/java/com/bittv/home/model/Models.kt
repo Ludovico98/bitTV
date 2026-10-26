@@ -48,7 +48,6 @@ data class Prefs(
     val subs: Set<Svc> = Svc.entries.toSet() - Svc.PARAMOUNT,
     val watchLater: List<String> = listOf("longtide", "loworbit", "grandeur", "commissario", "static"),
     val animations: Boolean = true,
-    val voice: String? = null,
     val overscanGuides: Boolean = false,
     /** His order for the app bar (ids); empty = the default order. */
     val appOrder: List<String> = emptyList(),

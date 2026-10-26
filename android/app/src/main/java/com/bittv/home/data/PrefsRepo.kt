@@ -17,7 +17,6 @@ class PrefsRepo(private val store: DataStore<Preferences>) {
         val subs = stringSetPreferencesKey("subs")
         val watchLater = stringPreferencesKey("watch_later")   // ordered, newest first, '|'-separated
         val animations = booleanPreferencesKey("animations")
-        val voice = stringPreferencesKey("voice")
         val guides = booleanPreferencesKey("overscan_guides")
         val appOrder = stringPreferencesKey("app_order")
     }
@@ -29,7 +28,6 @@ class PrefsRepo(private val store: DataStore<Preferences>) {
             subs = p[K.subs]?.mapNotNull { name -> Svc.entries.firstOrNull { it.name == name } }?.toSet() ?: defaults.subs,
             watchLater = p[K.watchLater]?.let { if (it.isEmpty()) emptyList() else it.split('|') } ?: defaults.watchLater,
             animations = p[K.animations] ?: defaults.animations,
-            voice = p[K.voice],
             overscanGuides = p[K.guides] ?: defaults.overscanGuides,
             appOrder = p[K.appOrder]?.split('|')?.filter { it.isNotEmpty() } ?: defaults.appOrder,
         )
@@ -58,7 +56,6 @@ class PrefsRepo(private val store: DataStore<Preferences>) {
 
     suspend fun clearWatchLater() { store.edit { it[K.watchLater] = "" } }
     suspend fun setAnimations(on: Boolean) { store.edit { it[K.animations] = on } }
-    suspend fun setVoice(name: String?) { store.edit { if (name == null) it.remove(K.voice) else it[K.voice] = name } }
     suspend fun setOverscanGuides(on: Boolean) { store.edit { it[K.guides] = on } }
     suspend fun setAppOrder(ids: List<String>) { store.edit { it[K.appOrder] = ids.joinToString("|") } }
 }

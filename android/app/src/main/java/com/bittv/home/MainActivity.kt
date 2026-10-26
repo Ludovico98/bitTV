@@ -22,7 +22,6 @@ import androidx.compose.ui.platform.LocalWindowInfo
 
 class MainActivity : ComponentActivity() {
     private val homeSignal = mutableIntStateOf(0)
-    private val askSignal = mutableIntStateOf(0)
     private val wakeSignal = mutableIntStateOf(0)
     /** The TV going to standby: the next time BitTV is in front it plays the boot animation (see WakeGate). */
     private val screenOff = object : android.content.BroadcastReceiver() {
@@ -43,7 +42,7 @@ class MainActivity : ComponentActivity() {
         val skipBoot = intent.getBooleanExtra(EXTRA_SKIP_BOOT, false) ||
             !woke && (savedInstanceState != null || !bootGate().shouldPlay(bootCount()))
         val demoCatalog = intent.getBooleanExtra(EXTRA_DEMO_CATALOG, false)
-        setContent { BitTvTheme { TvCanvas { WindowBackdrop { BitTvRoot(graph, skipBoot, homeSignal.intValue, demoCatalog, askSignal.intValue, wakeSignal.intValue) } } } }
+        setContent { BitTvTheme { TvCanvas { WindowBackdrop { BitTvRoot(graph, skipBoot, homeSignal.intValue, demoCatalog, wakeSignal.intValue) } } } }
         // Compose's per-frame accessibility work only when a screen reader is on (see ComposeA11y); re-applied after
         // Compose re-reads the services: on attach (this post runs after it), on every change, and on resume
         androidx.core.content.ContextCompat.registerReceiver(this, screenOff, android.content.IntentFilter().apply { addAction(Intent.ACTION_SCREEN_OFF); addAction(Intent.ACTION_SCREEN_ON) },
@@ -92,7 +91,6 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         if (intent.hasCategory(Intent.CATEGORY_HOME)) homeSignal.intValue++
-        if (intent.action == ACTION_ASK) askSignal.intValue++   // the remote's mic, sent by the Home helper
     }
 
     private fun bootGate(): BootGate {
@@ -103,5 +101,5 @@ class MainActivity : ComponentActivity() {
 
     private fun bootCount(): Int? = runCatching { Settings.Global.getInt(contentResolver, Settings.Global.BOOT_COUNT) }.getOrNull()
 
-    companion object { const val EXTRA_SKIP_BOOT = "skipBoot"; const val EXTRA_DEMO_CATALOG = "demoCatalog"; const val ACTION_ASK = "com.bittv.home.ASK" }
+    companion object { const val EXTRA_SKIP_BOOT = "skipBoot"; const val EXTRA_DEMO_CATALOG = "demoCatalog" }
 }
