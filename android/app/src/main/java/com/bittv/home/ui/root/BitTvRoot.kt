@@ -136,7 +136,7 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
     // the headline, taking turns between the news sites: the feeds are read every half hour while Home is in front,
     // the story changes every 7 minutes and its age is said again each minute; offline, the last one stays and the
     // feeds are tried again a minute later. The demo keeps a fixed one.
-    var news by remember { mutableStateOf(if (demoCatalog) listOf(NewsItem("Space mission returns safely after 200 days in orbit", "BBC News · 12 min ago")) else emptyList()) }
+    var news by remember { mutableStateOf(if (demoCatalog) DEMO_NEWS else emptyList()) }
     var newsTurns by remember { mutableStateOf<List<com.bittv.home.news.Headline>>(emptyList()) }
     var newsReadAt by remember { mutableStateOf(0L) }
     var newsTurn by remember { mutableStateOf(0) }
@@ -149,7 +149,8 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
                     graph.news.rotation(now)?.let { newsTurns = it; newsReadAt = now }
                 if (newsTurnAt == 0L) newsTurnAt = now
                 else if (now - newsTurnAt >= com.bittv.home.news.NewsFeed.ROTATE_MS) { newsTurn++; newsTurnAt = now }
-                newsTurns.takeIf { it.isNotEmpty() }?.let { news = listOf(com.bittv.home.news.NewsFeed.item(it[newsTurn % it.size], now)) }
+                // every story, starting from this turn's: Home shows the first, Right in the news card goes on to the rest
+                newsTurns.takeIf { it.isNotEmpty() }?.let { t -> news = t.indices.map { i -> com.bittv.home.news.NewsFeed.item(t[(newsTurn + i) % t.size], now) } }
                 kotlinx.coroutines.delay(60_000L)
             }
         }
@@ -244,8 +245,8 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
             override fun previewBlank(inputId: String) { if (!demoCatalog) graph.tvInputs.noPicture(inputId) }
             override fun openBrowser() { if (!demoCatalog) graph.appsRepo.launchFirst(com.bittv.home.platform.TvApps.BROWSER) }
             // the story in the TV's browser (not whatever else claims bbc.co.uk links)
-            override fun openNews() {
-                val link = news.firstOrNull()?.link ?: return
+            override fun openNews(item: NewsItem) {
+                val link = item.link ?: return
                 val i = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(link)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 val handlers = context.packageManager.queryIntentActivities(i, 0).map { it.activityInfo.packageName }
                 com.bittv.home.platform.TvApps.BROWSER.firstOrNull { it in handlers }?.let { i.setPackage(it) }
@@ -315,3 +316,9 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
         }
     }
 }
+
+private val DEMO_NEWS = listOf(
+    NewsItem("Space mission returns safely after 200 days in orbit", "BBC News · 12 min ago"),
+    NewsItem("Webb telescope spots water vapour around a young star", "NASA · 40 min ago"),
+    NewsItem("Researchers grow a working tooth in the lab", "ScienceDaily · 2 hr ago"),
+)

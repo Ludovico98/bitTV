@@ -39,6 +39,19 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.unit.IntOffset
 import androidx.tv.material3.Text
 import com.bittv.home.model.NewsItem
 import com.bittv.home.model.NowPlaying
@@ -60,7 +73,7 @@ import com.bittv.home.ui.theme.Type
  */
 @Composable
 fun ActiveSection(
-    nowPlaying: NowPlaying?, news: NewsItem?, today: List<TodayItem>, actions: HomeActions, playRequester: FocusRequester,
+    nowPlaying: NowPlaying?, news: List<NewsItem>, today: List<TodayItem>, actions: HomeActions, playRequester: FocusRequester,
     width: Dp, height: Dp, modifier: Modifier = Modifier,
 ) {
     Box(
@@ -71,7 +84,7 @@ fun ActiveSection(
             NowPlayingBlock(nowPlaying, actions, playRequester)
             Divider()
             // the news takes the room left between the player and the day
-            Box(Modifier.weight(1f).fillMaxWidth()) { if (news != null) NewsBlock(news, actions) }
+            Box(Modifier.weight(1f).fillMaxWidth()) { if (news.isNotEmpty()) NewsCarousel(news, actions) }
             Divider()
             today.forEach { item ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -127,18 +140,55 @@ fun CircleButton(glyph: Glyph, tag: String, modifier: Modifier = Modifier, size:
     ) { GlyphIcon(glyph, if (focused) Color(0xFF0B0F18) else Ink, Modifier.size(size * 0.54f)) }
 }
 
+/**
+ * The news, one story at a time: the first is this turn's; with the card focused, Right goes on to the next story
+ * (round to the first after the last) and Left back. Left on the first leaves the card as before, OK opens the
+ * story on show. When the stories take their next turn, the card starts again from the new first one, unless he is
+ * reading through them.
+ */
 @Composable
-private fun NewsBlock(n: NewsItem, actions: HomeActions) {
+private fun NewsCarousel(news: List<NewsItem>, actions: HomeActions) {
     var focused by remember { mutableStateOf(false) }
+    var at by remember { mutableIntStateOf(0) }
+    LaunchedEffect(news.first().headline) { if (!focused) at = 0 }
+    val i = at.coerceIn(0, news.size - 1)
     Column(
         Modifier.testTag("news").fillMaxWidth().clip(RoundedCornerShape(8.dp))
             .onFocusChanged { focused = it.isFocused }
-            .clickable(remember { MutableInteractionSource() }, null) { actions.openNews() }
+            .onPreviewKeyEvent { e ->
+                if (e.type != KeyEventType.KeyDown || news.size < 2) return@onPreviewKeyEvent false
+                when (e.key) {
+                    Key.DirectionRight -> { at = (i + 1) % news.size; true }
+                    Key.DirectionLeft -> if (i > 0) { at = i - 1; true } else false
+                    else -> false
+                }
+            }
+            .clickable(remember { MutableInteractionSource() }, null) { actions.openNews(news[i]) }
             .background(if (focused) Color(0x1FFFFFFF) else Color.Transparent)
             .then(if (focused) Modifier.border(1.5.dp, Color.White, RoundedCornerShape(8.dp)) else Modifier)
-            .padding(horizontal = 4.dp, vertical = 2.dp),
+            .padding(horizontal = 7.dp, vertical = 5.dp),
     ) {
-        Text("News · ${n.source}", style = Type.Caption.copy(color = Ink3, fontWeight = FontWeight.SemiBold), maxLines = 1)
-        Text(n.headline, style = Type.Body.copy(color = Ink, fontWeight = FontWeight.Medium), maxLines = 4, overflow = TextOverflow.Ellipsis)
+        // a quick fade and nudge in the direction travelled; the size never changes
+        val motion = LocalMotion.current
+        AnimatedContent(
+            targetState = i,
+            transitionSpec = {
+                val dir = if (targetState > initialState) 1 else -1
+                (fadeIn(motion.tween(160)) + slideInHorizontally(motion.tween<IntOffset>(160)) { dir * it / 8 }) togetherWith fadeOut(motion.tween(120))
+            },
+            label = "news",
+        ) { shown ->
+            val n = news[shown.coerceIn(0, news.size - 1)]
+            Column(Modifier.fillMaxWidth()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(n.source, style = Type.Caption.copy(color = Ink3, fontWeight = FontWeight.SemiBold), maxLines = 1,
+                        overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    if (news.size > 1) Text(if (focused) "‹ ${shown + 1} / ${news.size} ›" else "${shown + 1} / ${news.size}",
+                        style = Type.Caption.copy(color = if (focused) Ink else Ink3), modifier = Modifier.testTag("news:count"))
+                }
+                Text(n.headline, style = Type.Body.copy(color = Ink, fontWeight = FontWeight.Medium), maxLines = 4, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.testTag("news:headline"))
+            }
+        }
     }
 }

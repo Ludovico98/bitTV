@@ -232,7 +232,7 @@ fun HomeScreen(
                                 up = searchRequester   // the first shortcut, not whichever is nearest the banner's middle
                             })
                         Spacer(Modifier.width(20.dp))
-                        ActiveSection(state.nowPlaying, state.news.firstOrNull(), state.today, actions, playRequester,
+                        ActiveSection(state.nowPlaying, state.news, state.today, actions, playRequester,
                             ActiveW, BannerH)
                     }
                 }

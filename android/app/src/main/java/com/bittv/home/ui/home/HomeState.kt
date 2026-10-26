@@ -42,7 +42,8 @@ interface HomeActions {
     fun toggleWatchLater(t: Title)
     fun cast() {}
     fun spotify(command: String) {}
-    fun openNews() {}
+    /** Open this story (the one on show in the news carousel). */
+    fun openNews(item: NewsItem) {}
     /** The app bar was rearranged: the new order of app ids. */
     fun reorderApps(ids: List<String>) {}
     /** Switch the TV to this HDMI input, full screen. */
