@@ -62,6 +62,9 @@ fun AppIcon(app: AppEntry, width: Dp, height: Dp, modifier: Modifier = Modifier,
     }
 }
 
+/** Whether BitTV draws this app's look itself (else, without a banner, it shows the app's icon). */
+fun hasDrawnLook(id: String) = id in looks
+
 private class Look(val bg: Brush, val glyph: @Composable (TextUnit) -> Unit = {})
 
 private fun solid(c: Long) = Brush.linearGradient(listOf(Color(c), Color(c)))

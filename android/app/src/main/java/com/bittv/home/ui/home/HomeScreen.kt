@@ -190,7 +190,7 @@ fun HomeScreen(
     }) {
         HomeBackground()
 
-        AppBar(state.apps, state.installed, actions::openApp,
+        AppBar(state.apps.filter { it.id !in state.hiddenApps }, state.installed, actions::openApp,
             Modifier.padding(start = 40.dp, top = 30.dp, bottom = 30.dp).width(97.dp).fillMaxHeightCompat(),
             returnTo = { returnFocus() }, onReorder = actions::reorderApps)
 

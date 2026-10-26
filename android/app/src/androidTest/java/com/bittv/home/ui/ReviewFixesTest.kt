@@ -61,6 +61,19 @@ class ReviewFixesAppTest {
     }
 
     @Test
+    fun anAppSwitchedOffInSettingsLeavesTheAppBarAndComesBack() {
+        rule.onNodeWithTag("app:spotify").assertExists()
+        rule.onNodeWithTag("sc:Settings").performClick()
+        val sw = rule.onNodeWithTag("opt:app:spotify")
+        sw.assert(androidx.compose.ui.test.isOn()).performSemanticsAction(SemanticsActions.OnClick)
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag("app:spotify").fetchSemanticsNodes().isEmpty() }   // Home, underneath
+        sw.assert(androidx.compose.ui.test.isOff()).performSemanticsAction(SemanticsActions.OnClick)
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag("app:spotify").fetchSemanticsNodes().isNotEmpty() }
+        back()
+        rule.onNodeWithTag("app:spotify").assertExists()
+    }
+
+    @Test
     fun watchLaterRemovedFromDetailsKeepsFocusInTheRow() {
         setWatchLater("loworbit", "grandeur")
         removeFromDetailsAndComeBack("tile:wl:loworbit")

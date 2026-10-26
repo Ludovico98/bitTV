@@ -11,6 +11,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import com.bittv.home.ui.components.LocalAppArt
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -39,9 +47,10 @@ import com.bittv.home.ui.theme.Type
 import kotlinx.coroutines.launch
 
 /** Settings: how BitTV looks and moves, and the way into the TV's own settings. Every change is saved at once. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
-    prefs: Prefs, repo: PrefsRepo, apps: List<AppEntry>,
+    prefs: Prefs, repo: PrefsRepo, apps: List<AppEntry>, installed: Set<String> = apps.map { it.id }.toSet(),
     onReplayBoot: () -> Unit, onBack: () -> Unit, onTvSettings: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
@@ -59,8 +68,9 @@ fun SettingsScreen(
     Box(Modifier.fillMaxSize().background(Color(0xD1030408)), contentAlignment = Alignment.Center) {
         if (guide) { RemoteGuide(onClose = { guide = false; returnToGuideButton = true }); return@Box }
         Column(
-            Modifier.width(800.dp).background(Color(0xFF121722), RoundedCornerShape(18.dp)).border(1.dp, GlassLine, RoundedCornerShape(18.dp))
-                .padding(horizontal = 16.dp, vertical = 22.dp),
+            Modifier.width(800.dp).heightIn(max = 480.dp).background(Color(0xFF121722), RoundedCornerShape(18.dp))
+                .border(1.dp, GlassLine, RoundedCornerShape(18.dp)).clip(RoundedCornerShape(18.dp))
+                .verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 22.dp),
         ) {
             Text("Settings", style = Type.Title.copy(fontSize = 22.sp))
             Text("Suggested, the banner and Search show titles from the apps installed on this TV.", style = Type.Caption)
@@ -81,6 +91,18 @@ fun SettingsScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 // the stock home is off, so the TV's own settings (picture, sound, network, inputs) open from here too
                 OptionRow("TV settings", Modifier.width(251.dp).testTag("opt:tvsettings"), value = "Open", onClick = onTvSettings)
+            }
+            Section("Apps on Home")
+            Text("Every app on this TV. Switch one on to put it on the app bar; apps installed later go on it by themselves.",
+                style = Type.Caption, modifier = Modifier.padding(bottom = 8.dp))
+            // BitTV's own apps that aren't installed are listed too, last: on the bar they offer the Play Store
+            FlowRow(maxItemsInEachRow = 3, horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                apps.sortedBy { it.id !in installed }.forEach { a ->   // the installed ones first, in the app bar's order
+                    val here = a.id in installed
+                    OptionRow(if (here) a.label else "${a.label} · not installed", Modifier.width(251.dp).testTag("opt:app:${a.id}"),
+                        checked = a.id !in prefs.hiddenApps, onClick = { scope.launch { repo.toggleAppShown(a.id) } },
+                        leading = { AppIcon(a, 30.dp, 18.dp, Modifier.alpha(if (here) 1f else 0.45f), radius = 4.dp, art = LocalAppArt.current[a.id]) })
+                }
             }
         }
     }

@@ -13,8 +13,19 @@ class AppsRepoTest {
         override fun isLaunchable(pkg: String) = pkg in present
         override fun launch(pkg: String): Boolean { if (pkg !in present) return false; launched += pkg; return true }
         override fun openStore(pkg: String) { store += pkg }
+        var launcher = listOf<Pair<String, String>>()
+        override fun launchableApps() = launcher
     }
     private val app = AppEntry("x", "X", listOf("a.first", "a.second"), null)
+
+    @Test fun everyAppOnTheTvIsListedOursFirstThenTheRestByName() {
+        val pk = FakePackages(setOf("a.second", "com.zz", "com.crunchyroll"))
+        pk.launcher = listOf("a.second" to "X (the TV app)", "com.zz" to "Zoom", "com.crunchyroll" to "Crunchyroll", "com.zz" to "Zoom")
+        val missing = AppEntry("y", "Y", listOf("b.only"), null)
+        val apps = AppsRepo(pk).installedApps(listOf(app, missing))
+        assertEquals(listOf("x", "com.crunchyroll", "com.zz"), apps.map { it.id })   // our entry, not its package again
+        assertEquals(AppEntry("com.crunchyroll", "Crunchyroll", listOf("com.crunchyroll"), null), apps[1])
+    }
 
     @Test fun installedPicksAnyPresentCandidate() {
         val repo = AppsRepo(FakePackages(setOf("a.second")))

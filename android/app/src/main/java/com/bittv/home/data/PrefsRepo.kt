@@ -19,6 +19,8 @@ class PrefsRepo(private val store: DataStore<Preferences>) {
         val animations = booleanPreferencesKey("animations")
         val guides = booleanPreferencesKey("overscan_guides")
         val appOrder = stringPreferencesKey("app_order")
+        val hiddenApps = stringSetPreferencesKey("hidden_apps")
+        val seenApps = stringSetPreferencesKey("seen_apps")
     }
 
     private val defaults = Prefs()
@@ -30,6 +32,8 @@ class PrefsRepo(private val store: DataStore<Preferences>) {
             animations = p[K.animations] ?: defaults.animations,
             overscanGuides = p[K.guides] ?: defaults.overscanGuides,
             appOrder = p[K.appOrder]?.split('|')?.filter { it.isNotEmpty() } ?: defaults.appOrder,
+            hiddenApps = p[K.hiddenApps] ?: defaults.hiddenApps,
+            seenApps = p[K.seenApps],
         )
     }
 
@@ -58,4 +62,16 @@ class PrefsRepo(private val store: DataStore<Preferences>) {
     suspend fun setAnimations(on: Boolean) { store.edit { it[K.animations] = on } }
     suspend fun setOverscanGuides(on: Boolean) { store.edit { it[K.guides] = on } }
     suspend fun setAppOrder(ids: List<String>) { store.edit { it[K.appOrder] = ids.joinToString("|") } }
+
+    /** The app's switch in Settings: on the app bar or off it. */
+    suspend fun toggleAppShown(id: String) {
+        store.edit { p -> val hidden = p[K.hiddenApps] ?: emptySet(); p[K.hiddenApps] = if (id in hidden) hidden - id else hidden + id }
+    }
+
+    /** Records the apps on the TV now: one installed since last time goes on the app bar (read and written in one edit). */
+    suspend fun reconcileApps(installed: Collection<String>, known: Set<String>) {
+        store.edit { p ->
+            AppShelf.reconcile(installed, known, p[K.seenApps], p[K.hiddenApps] ?: emptySet())?.let { p[K.seenApps] = it.seen; p[K.hiddenApps] = it.hidden }
+        }
+    }
 }

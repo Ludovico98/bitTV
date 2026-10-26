@@ -17,6 +17,10 @@ interface Packages {
     fun searchIn(pkg: String, query: String): Boolean = false
     /** The app's own TV banner (its official Google TV artwork), if it ships one. */
     fun banner(pkg: String): android.graphics.Bitmap? = null
+    /** The app's ordinary icon on a dark tile the shape of a banner, for apps without one. */
+    fun iconTile(pkg: String): android.graphics.Bitmap? = null
+    /** Every app on the TV that can be opened (TV or phone launcher entry), BitTV aside: package to name. */
+    fun launchableApps(): List<Pair<String, String>> = emptyList()
 }
 
 /** The apps on the app bar, as installed on this TV: each entry's first candidate package that can be opened. */
@@ -32,6 +36,18 @@ class AppsRepo(private val packages: Packages) {
     }
     fun openStore(app: AppEntry) = packages.openStore(app.packages.first())
     fun banner(app: AppEntry): android.graphics.Bitmap? = packageFor(app)?.let(packages::banner)
+    fun iconTile(app: AppEntry): android.graphics.Bitmap? = packageFor(app)?.let(packages::iconTile)
+
+    /**
+     * Every app on the TV: BitTV's own entries that are installed (in [known]'s order), then any other app by name,
+     * as an entry of its own (its id is its package).
+     */
+    fun installedApps(known: List<AppEntry>): List<AppEntry> {
+        val claimed = known.flatMap { it.packages }.toSet()
+        val others = packages.launchableApps().filter { it.first !in claimed }.distinctBy { it.first }
+            .map { (pkg, label) -> AppEntry(pkg, label, listOf(pkg), null) }.sortedBy { it.label.lowercase() }
+        return known.filter { packageFor(it) != null } + others
+    }
     /** Opens the first of [pkgs] that is installed (the Browser and Media shortcuts); false if none is. */
     fun launchFirst(pkgs: List<String>): Boolean = pkgs.firstOrNull(packages::isLaunchable)?.let(packages::launch) ?: false
 
@@ -58,6 +74,22 @@ class AndroidPackages(private val context: Context) : Packages {
             }
         }
     } catch (e: Exception) { null }
+
+    override fun iconTile(pkg: String): android.graphics.Bitmap? = try {
+        pm.getApplicationIcon(pkg).let { d ->
+            android.graphics.Bitmap.createBitmap(320, 180, android.graphics.Bitmap.Config.ARGB_8888).also { b ->
+                val c = android.graphics.Canvas(b)
+                c.drawColor(0xFF1E2430.toInt())
+                d.setBounds(100, 30, 220, 150); d.draw(c)
+            }
+        }
+    } catch (e: Exception) { null }
+
+    override fun launchableApps(): List<Pair<String, String>> =
+        listOf(Intent.CATEGORY_LEANBACK_LAUNCHER, Intent.CATEGORY_LAUNCHER).flatMap { cat ->
+            pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(cat), 0)
+        }.map { it.activityInfo.packageName to it.loadLabel(pm).toString() }
+            .filter { it.first != context.packageName }.distinctBy { it.first }
 
     private fun start(i: Intent): Boolean = i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).let {
         if (pm.resolveActivity(it, 0) == null) false

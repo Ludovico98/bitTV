@@ -32,6 +32,8 @@ data class HomeState(
     val rotation: Long = 0,
     /** Devices plugged into the TV; null on the demo (stand-in tiles), empty when nothing is connected. */
     val devices: List<com.bittv.home.platform.ExternalDevice>? = null,
+    /** Apps switched off the app bar in Settings (they still give titles their app icon). */
+    val hiddenApps: Set<String> = emptySet(),
 )
 
 interface HomeActions {

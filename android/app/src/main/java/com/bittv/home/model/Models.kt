@@ -55,6 +55,10 @@ data class Prefs(
     val overscanGuides: Boolean = false,
     /** His order for the app bar (ids); empty = the default order. */
     val appOrder: List<String> = emptyList(),
+    /** Apps switched off the app bar in Settings (ids). */
+    val hiddenApps: Set<String> = emptySet(),
+    /** Every app BitTV has met (see AppShelf); null until the TV's apps were first read. */
+    val seenApps: Set<String>? = null,
 )
 
 fun Title.isAvailable(subs: Set<Svc>): Boolean = services.any { it in subs }

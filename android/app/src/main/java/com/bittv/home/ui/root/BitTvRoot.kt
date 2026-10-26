@@ -40,6 +40,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import com.bittv.home.data.AppOrder
+import com.bittv.home.ui.components.hasDrawnLook
 import com.bittv.home.platform.AppsRepo
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -92,8 +93,9 @@ sealed interface Screen {
 fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, demoCatalog: Boolean = false, wakeSignal: Int = 0) {
     val prefs by graph.prefs.prefs.collectAsStateWithLifecycle(initialValue = Prefs())
     val scope = rememberCoroutineScope()
-    // the app bar in his order (hold OK on an app to move it)
-    val apps = remember(prefs.appOrder) { AppOrder.ordered(graph.apps, prefs.appOrder) }
+    // every app: BitTV's own and any other on the TV, in his order for the app bar (hold OK on an app to move it)
+    var extraApps by remember { mutableStateOf<List<AppEntry>>(emptyList()) }
+    val apps = remember(prefs.appOrder, extraApps) { AppOrder.ordered(graph.apps + extraApps, prefs.appOrder) }
     val context = LocalContext.current
     // the TV's real apps; tests (demo catalogue) keep the stand-in set and screens
     var installed by remember { mutableStateOf(if (demoCatalog) apps.map { it.id }.toSet() - "paramount" else graph.appsRepo.installed(apps)) }
@@ -157,11 +159,19 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
     }
     LaunchedEffect(demoCatalog) {
         if (!demoCatalog) lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            installed = graph.appsRepo.installed(apps)   // an app installed or removed while away shows at once
-            // the apps' own TV banners for the app bar (SmartTube keeps the YouTube mark)
+            // every app on the TV, read again on each resume: one installed or removed while away shows at once, and
+            // one installed since last time goes on the app bar
+            val known = graph.apps.map { it.id }.toSet()
+            val found = withContext(Dispatchers.IO) { graph.appsRepo.installedApps(graph.apps) }
+            extraApps = found.filter { it.id !in known }
+            installed = found.map { it.id }.toSet()
+            graph.prefs.reconcileApps(installed, known)
+            // the apps' own TV banners for the app bar (SmartTube keeps the YouTube mark); an app with neither a banner
+            // nor a drawn look shows its icon
             appArt = withContext(Dispatchers.IO) {
-                apps.filter { it.id != "smarttube" && it.id in installed }
-                    .mapNotNull { a -> graph.appsRepo.banner(a)?.let { a.id to it.asImageBitmap() } }.toMap()
+                found.filter { it.id != "smarttube" }.mapNotNull { a ->
+                    (graph.appsRepo.banner(a) ?: if (hasDrawnLook(a.id)) null else graph.appsRepo.iconTile(a))?.let { a.id to it.asImageBitmap() }
+                }.toMap()
             }
             graph.nowPlaying.start()   // what's playing, live, while Home is in front
             devices = graph.tvInputs.devices()   // and what is plugged in (the PS5), kept current while Home shows
@@ -276,7 +286,7 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
             Box(if (top != Screen.Home) Modifier.focusProperties { onEnter = { cancelFocusChange() } }.focusGroup() else Modifier) {
                 HomeScreen(
                     HomeState(
-                        prefs = effective, titles = catalog.titles, progress = catalog.progress, apps = apps,
+                        prefs = effective, titles = catalog.titles, progress = catalog.progress, apps = apps, hiddenApps = prefs.hiddenApps,
                         installed = installed, today = TodayInfo.items(LocalDate.now()),
                         nowPlaying = if (demoCatalog) NowPlaying("Midnight Drive", "Neon Coast", 214, 83, true) else nowPlaying,
                         news = news,
@@ -305,7 +315,7 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
                     if (demoCatalog) installed = installed + top.app.id else graph.appsRepo.openStore(top.app)
                     pop()
                 }, onBack = ::pop)
-                Screen.Settings -> SettingsScreen(prefs, graph.prefs, apps,
+                Screen.Settings -> SettingsScreen(prefs, graph.prefs, apps, installed,
                     onTvSettings = { runCatching { context.startActivity(Intent(android.provider.Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } },
                     onReplayBoot = { pop(); booting = true }, onBack = ::pop)
                 is Screen.Opening -> OpeningScreen(top.app, top.label, top.line, onBack = ::pop)
