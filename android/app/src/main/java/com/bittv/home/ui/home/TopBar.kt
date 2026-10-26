@@ -49,7 +49,8 @@ import com.bittv.home.ui.theme.Ink3
 import com.bittv.home.ui.theme.Type
 import androidx.compose.foundation.Canvas
 
-data class Shortcut(val label: String, val glyph: Glyph, val onClick: () -> Unit)
+/** [requester]: set when something else sends focus to this button (Up from the banner goes to Search). */
+data class Shortcut(val label: String, val glyph: Glyph, val requester: FocusRequester? = null, val onClick: () -> Unit)
 
 /** Round shortcut buttons, icon only (their names would sit under the banner). */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
@@ -65,7 +66,7 @@ fun ShortcutButtons(items: List<Shortcut>, modifier: Modifier = Modifier, onFocu
 @Composable
 private fun RoundButton(s: Shortcut, onFocused: (FocusRequester) -> Unit) {
     var focused by remember { mutableStateOf(false) }
-    val requester = remember { FocusRequester() }
+    val requester = s.requester ?: remember { FocusRequester() }
     val scale by animateFloatAsState(if (focused) 1.1f else 1f, LocalMotion.current.tween(160), label = "sc")
     Box(Modifier.zIndex(if (focused) 1f else 0f)) {
         Box(

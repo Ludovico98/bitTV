@@ -178,11 +178,17 @@ private fun TitleTile(item: RowItem.Show, rowKey: String, subs: Set<Svc>, apps: 
                 }
             })
         }
-        // no caption (the artwork shows the title and the app's badge), but the line it took stays: the glass strip and
-        // the space between rows are measured with it, and the focused tile's glow needs the room
-        Text("", style = Type.Label, modifier = Modifier.padding(top = 9.dp))
+        CaptionLine()
     }
 }
+
+/**
+ * The line a caption under the tiles took. There are no captions (the artwork shows the title and the app's
+ * badge), but every row keeps the line: the glass strip and the space between rows are measured with it, and the
+ * focused tile's glow needs the room.
+ */
+@Composable
+private fun CaptionLine() = Text("", style = Type.Label, modifier = Modifier.padding(top = 9.dp))
 
 @Composable
 private fun DeviceTile(item: RowItem.Device, animate: Boolean, preview: Boolean, modifier: Modifier, onClick: () -> Unit, onFocus: () -> Unit,
@@ -223,6 +229,7 @@ private fun DeviceTile(item: RowItem.Device, animate: Boolean, preview: Boolean,
                 }
             }
         }
+        CaptionLine()
     }
 }
 

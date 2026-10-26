@@ -141,6 +141,22 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
             while (true) { graph.answers.current()?.let { weatherNow = it }; kotlinx.coroutines.delay(30 * 60_000L) }
         }
     }
+    // the headline (BBC News's top story): read every 15 minutes while Home is in front, its age said again each
+    // minute; offline, the last one stays and the feed is tried again a minute later. The demo keeps a fixed one.
+    var news by remember { mutableStateOf(if (demoCatalog) listOf(NewsItem("Space mission returns safely after 200 days in orbit", "BBC News · 12 min ago")) else emptyList()) }
+    var newsTop by remember { mutableStateOf<com.bittv.home.news.Headline?>(null) }
+    var newsReadAt by remember { mutableStateOf(0L) }
+    LaunchedEffect(demoCatalog) {
+        if (!demoCatalog) lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                val now = System.currentTimeMillis()
+                if (newsTop == null || now - newsReadAt >= com.bittv.home.news.NewsFeed.REFRESH_MS)
+                    graph.news.headlines()?.let { newsTop = com.bittv.home.news.NewsFeed.top(it); newsReadAt = now }
+                newsTop?.let { news = listOf(com.bittv.home.news.NewsFeed.item(it, now)) }
+                kotlinx.coroutines.delay(60_000L)
+            }
+        }
+    }
     LaunchedEffect(demoCatalog) {
         if (!demoCatalog) lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             installed = graph.appsRepo.installed(apps)   // an app installed or removed while away shows at once
@@ -259,6 +275,14 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
             override fun refreshDevices() { if (!demoCatalog) scope.launch { devices = withContext(Dispatchers.IO) { graph.tvInputs.devices() } } }
             override fun previewBlank(inputId: String) { if (!demoCatalog) graph.tvInputs.noPicture(inputId) }
             override fun openBrowser() { if (!demoCatalog) graph.appsRepo.launchFirst(com.bittv.home.platform.TvApps.BROWSER) }
+            // the story in the TV's browser (not whatever else claims bbc.co.uk links)
+            override fun openNews() {
+                val link = news.firstOrNull()?.link ?: return
+                val i = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(link)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                val handlers = context.packageManager.queryIntentActivities(i, 0).map { it.activityInfo.packageName }
+                com.bittv.home.platform.TvApps.BROWSER.firstOrNull { it in handlers }?.let { i.setPackage(it) }
+                runCatching { context.startActivity(i) }
+            }
             override fun openMedia() { if (!demoCatalog) graph.appsRepo.launchFirst(com.bittv.home.platform.TvApps.MEDIA) }
             override suspend fun findCastDevices() = if (demoCatalog) DemoCatalog.castDevices else graph.network.scan()
             // the card's buttons drive the session shown; with nothing to control, play opens Spotify
@@ -295,7 +319,7 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
                         prefs = effective, titles = catalog.titles, progress = catalog.progress, apps = apps,
                         installed = installed, today = TodayInfo.items(LocalDate.now()),
                         nowPlaying = if (demoCatalog) NowPlaying("Midnight Drive", "Neon Coast", 214, 83, true) else nowPlaying,
-                        news = listOf(NewsItem("Space mission returns safely after 200 days in orbit", "BBC News · 12 min ago")),
+                        news = news,
                         weather = weatherNow, devices = if (demoCatalog) null else devices, rotation = if (demoCatalog) 0 else rotation,
                     ),
                     actions, active = top == Screen.Home, returnToken = returnToken, topToken = topToken,

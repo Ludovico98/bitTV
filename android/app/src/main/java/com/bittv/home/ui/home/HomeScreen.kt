@@ -43,6 +43,10 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.foundation.border
 import com.bittv.home.ui.theme.GlassLine
 import androidx.compose.ui.draw.alpha
@@ -116,6 +120,8 @@ fun HomeScreen(
     var focusedSection by remember { mutableStateOf("hero") }
     var clock by remember { mutableStateOf(now()) }
     val heroRequester = remember { FocusRequester() }
+    val dotsRequester = remember { FocusRequester() }
+    val searchRequester = remember { FocusRequester() }
     var lastContent by remember { mutableStateOf<FocusRequester?>(null) }   // where Right from the app bar (and Back) return
     val playRequester = remember { FocusRequester() }
     val overlayRequester = remember { FocusRequester() }
@@ -203,11 +209,11 @@ fun HomeScreen(
                     Row(Modifier.measured("top", heights).section("top") { focusedSection = it; pageSpec.section = it }.padding(start = RowStartPad, end = 40.dp).fillMaxWidth().height(36.dp),
                         verticalAlignment = Alignment.CenterVertically) {
                         ShortcutButtons(onFocused = { lastContent = it; lastRowKey = null }, items = listOf(
-                            Shortcut("Search", Glyph.SEARCH, actions::openSearch),
+                            Shortcut("Search", Glyph.SEARCH, searchRequester, actions::openSearch),
                             Shortcut("Cast", Glyph.CAST) { castReturn = lastContent; castOpen = true; actions.cast() },
-                            Shortcut("Browser", Glyph.GLOBE, actions::openBrowser),
-                            Shortcut("Media", Glyph.MEDIA, actions::openMedia),
-                            Shortcut("Settings", Glyph.SETTINGS, actions::openSettings),
+                            Shortcut("Browser", Glyph.GLOBE, onClick = actions::openBrowser),
+                            Shortcut("Media", Glyph.MEDIA, onClick = actions::openMedia),
+                            Shortcut("Settings", Glyph.SETTINGS, onClick = actions::openSettings),
                         ))
                         Spacer(Modifier.weight(1f))
                         ClockLine(clock.format(TIME), clock.format(DATE), state.weather)
@@ -217,9 +223,14 @@ fun HomeScreen(
                     Row(Modifier.measured("hero", heights).section("hero") { focusedSection = it; pageSpec.section = it }.padding(start = RowStartPad, top = 20.dp, bottom = 18.dp)) {
                         Banner(banner, bannerIndex, state.prefs.subs, state.apps, BannerW, BannerH,
                             onClick = actions::openTitle, onFocus = { _: Title -> lastContent = heroRequester; lastRowKey = null },
-                            onIndexChange = { bannerIndex = it }, bannerRequester = heroRequester, onDotsFocus = { dotsFocused = it },
+                            onIndexChange = { bannerIndex = it }, bannerRequester = heroRequester, dots = dotsRequester,
+                            // a slide opened from the dots comes back to the dots
+                            onDotsFocus = { dotsFocused = it; if (it) { lastContent = dotsRequester; lastRowKey = null } },
                             dotsDown = rows.firstOrNull()?.let { rowRequesters.getOrPut(it.key) { FocusRequester() } },
-                            modifier = Modifier.testTag("hero").focusRequester(heroRequester).focusProperties { right = if (assistantOverlay != null) overlayRequester else playRequester })
+                            modifier = Modifier.testTag("hero").focusRequester(heroRequester).focusProperties {
+                                right = if (assistantOverlay != null) overlayRequester else playRequester
+                                up = searchRequester   // the first shortcut, not whichever is nearest the banner's middle
+                            })
                         Spacer(Modifier.width(20.dp))
                         ActiveSection(state.nowPlaying, state.news.firstOrNull(), state.today, actions, playRequester,
                             ActiveW, BannerH, overlay = assistantOverlay, overlayFocus = overlayRequester)
@@ -252,13 +263,44 @@ fun HomeScreen(
                 Modifier.padding(start = ContentX + RowStartPad + 46.dp, top = 80.dp))
         }
 
-        // a small clock once the top bar has scrolled away
+        // a small clock once the top bar has scrolled away, over a band of the backdrop: the row scrolling out of view
+        // fades away under it instead of showing through around the clock
         val scrolledAway by remember { derivedStateOf { listState.firstVisibleItemIndex >= 2 } }
+        TopFade({ scrolledAway }, Modifier.padding(start = ContentX).fillMaxWidth().height(TopFadeH))
         Text(clock.format(TIME), style = Type.Clock.copy(fontSize = 17.sp),
             modifier = Modifier.align(Alignment.TopEnd).padding(top = 30.dp, end = 40.dp).alpha(if (scrolledAway) 1f else 0f)
                 .shadow(10.dp, RoundedCornerShape(8.dp)).background(Color(0xF20B0E16), RoundedCornerShape(8.dp)).border(1.dp, GlassLine, RoundedCornerShape(8.dp))
                 .padding(horizontal = 10.dp, vertical = 4.dp))
     }
+}
+
+private val TopFadeH = 100.dp
+private val TopFadeSolid = 62.dp   // just below the small clock
+
+/**
+ * The Home backdrop again across the top of the content, solid to just below the small clock and then fading out.
+ * One draw (the backdrop bitmap through a fading mask, no layer), only while [shown]; without the window backdrop
+ * (tests, previews) the backdrop's dark base colour.
+ */
+@Composable
+private fun TopFade(shown: () -> Boolean, modifier: Modifier) {
+    val backdrop = com.bittv.home.ui.components.LocalHomeBackdrop.current
+    Box(modifier.testTag("topfade").drawWithCache {
+        val x0 = ContentX.toPx(); val solid = TopFadeSolid.toPx() / size.height
+        val mask = android.graphics.LinearGradient(0f, 0f, 0f, size.height, intArrayOf(android.graphics.Color.BLACK, android.graphics.Color.BLACK, 0),
+            floatArrayOf(0f, solid, 1f), android.graphics.Shader.TileMode.CLAMP)
+        val paint = android.graphics.Paint().apply {
+            shader = if (backdrop == null) android.graphics.ComposeShader(
+                android.graphics.LinearGradient(0f, 0f, 1f, 0f, 0xFF05070B.toInt(), 0xFF05070B.toInt(), android.graphics.Shader.TileMode.CLAMP), mask,
+                android.graphics.PorterDuff.Mode.DST_IN)
+            else android.graphics.ComposeShader(
+                // the bitmap is the whole window: shifted so it lines up with what is behind the band
+                android.graphics.BitmapShader(backdrop.bitmap.asAndroidBitmap(), android.graphics.Shader.TileMode.CLAMP, android.graphics.Shader.TileMode.CLAMP)
+                    .apply { setLocalMatrix(android.graphics.Matrix().apply { setTranslate(-x0, 0f) }) },
+                mask, android.graphics.PorterDuff.Mode.DST_IN)
+        }
+        onDrawBehind { if (shown()) drawIntoCanvas { it.nativeCanvas.drawRect(0f, 0f, size.width, size.height, paint) } }
+    })
 }
 
 private fun Modifier.section(key: String, onFocused: (String) -> Unit) = onFocusChanged { if (it.hasFocus) onFocused(key) }

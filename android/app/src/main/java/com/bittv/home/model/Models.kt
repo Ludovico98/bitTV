@@ -67,7 +67,8 @@ data class WeatherNow(val tempC: Int, val kind: WeatherKind)
 data class NowPlaying(val track: String, val artist: String, val durationSec: Int, val positionSec: Int, val playing: Boolean,
                       val art: Any? = null, val source: String? = null)
 
-data class NewsItem(val headline: String, val source: String)
+/** [link]: the story, opened in the browser from Home. */
+data class NewsItem(val headline: String, val source: String, val link: String? = null)
 
 /** A phone, tablet or computer that can cast or mirror to the TV. */
 data class CastDevice(val id: String, val name: String, val kind: Kind) {

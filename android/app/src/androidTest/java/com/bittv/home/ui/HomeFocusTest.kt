@@ -58,6 +58,7 @@ class HomeFocusTest {
     }
 
     private var topToken by mutableIntStateOf(0)
+    private var returnToken by mutableIntStateOf(0)
     private var rotation by mutableStateOf(0L)
 
     private fun setHome(devices: List<ExternalDevice>? = null) = rule.setContent {
@@ -68,6 +69,7 @@ class HomeFocusTest {
                     nowPlaying = null, news = emptyList(), weather = null, devices = devices, rotation = rotation),
                 actions,
                 topToken = topToken,
+                returnToken = returnToken,
             )
         }
     }
@@ -127,6 +129,39 @@ class HomeFocusTest {
         val shown = banner()[shownIndex()].id
         press(Key.DirectionCenter)
         assertEquals(listOf(shown), opened)
+    }
+
+    @Test
+    fun upFromTheBannerGoesToSearch() {
+        setHome(); focus("hero"); press(Key.DirectionUp)
+        assertEquals("sc:Search", focusedTag())
+    }
+
+    @Test
+    fun aTitleOpenedFromTheDotsComesBackToTheDots() {
+        setHome(); focus("hero"); press(Key.DirectionDown); press(Key.DirectionCenter)
+        assertEquals(1, opened.size)
+        rule.runOnIdle { returnToken++ }   // what the root does when Home is shown again
+        rule.waitForIdle()
+        assertEquals("hero:dots", focusedTag())
+    }
+
+    @Test
+    fun theDevicesRowLeavesTheSameRoomUnderItsTilesAsTheOthers() {
+        setHome(); focus("tile:cw:epidemic"); press(Key.DirectionDown)
+        assertEquals("row:dev", focusedRow())
+        press(Key.DirectionUp)   // measured unfocused: a focused tile is scaled up
+        // unclipped (boundsInRoot is cut at the screen's edge, where the Devices row sits)
+        fun bottom(n: SemanticsNode) = n.positionInRoot.y + n.size.height
+        fun gap(row: String): Float {
+            val r = rule.onNodeWithTag("row:$row").fetchSemanticsNode()
+            val tile = rule.onAllNodes(androidx.compose.ui.test.SemanticsMatcher("tile in $row") { n ->
+                n.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("tile:$row:") == true }).fetchSemanticsNodes()
+                .maxBy { it.size.height }
+            return bottom(r) - bottom(tile)
+        }
+        val dev = gap("dev"); val wl = gap("wl")
+        assertTrue("Devices leaves $dev px under its tile, Watch Later $wl", kotlin.math.abs(dev - wl) < 1f)
     }
 
     @Test
