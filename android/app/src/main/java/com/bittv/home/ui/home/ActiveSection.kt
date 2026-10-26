@@ -44,8 +44,6 @@ import com.bittv.home.model.NewsItem
 import com.bittv.home.model.NowPlaying
 import coil3.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.runtime.produceState
-import kotlinx.coroutines.delay
 import com.bittv.home.today.TodayItem
 import com.bittv.home.today.TodayKind
 import com.bittv.home.ui.components.LocalMotion
@@ -56,7 +54,10 @@ import com.bittv.home.ui.theme.Ink2
 import com.bittv.home.ui.theme.Ink3
 import com.bittv.home.ui.theme.Type
 
-/** The active section: Spotify now playing with controls, a news headline and information about the day. Its size never changes. */
+/**
+ * The active section: Spotify now playing with its controls (no position: the session's clock wasn't reliable), a
+ * news headline in the room that leaves, and information about the day. Its size never changes.
+ */
 @Composable
 fun ActiveSection(
     nowPlaying: NowPlaying?, news: NewsItem?, today: List<TodayItem>, actions: HomeActions, playRequester: FocusRequester,
@@ -69,7 +70,8 @@ fun ActiveSection(
         Column(Modifier.fillMaxSize().padding(horizontal = 13.dp, vertical = 11.dp)) {
             NowPlayingBlock(nowPlaying, actions, playRequester)
             Divider()
-            if (news != null) NewsBlock(news, actions)
+            // the news takes the room left between the player and the day
+            Box(Modifier.weight(1f).fillMaxWidth()) { if (news != null) NewsBlock(news, actions) }
             Divider()
             today.forEach { item ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -93,30 +95,21 @@ private fun NowPlayingBlock(np: NowPlaying?, actions: HomeActions, playRequester
             else Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0xFFFF5FA2), Color.Transparent), Offset(30f, 10f), 70f)))
         }
         Spacer(Modifier.width(9.dp))
-        Column {
+        Column(Modifier.weight(1f)) {
+            // the controls sit beside the label, so the news below gets the row they used to take
             Row(verticalAlignment = Alignment.CenterVertically) {
                 SpotifyGlyph(Modifier.size(10.dp)); Spacer(Modifier.width(4.dp))
                 Text("Spotify", style = Type.Caption.copy(color = Color(0xFF1ED760), fontWeight = FontWeight.SemiBold))
+                Spacer(Modifier.weight(1f))
+                Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    CircleButton(Glyph.PREV, "prev", size = 22.dp) { actions.spotify("prev") }
+                    CircleButton(if (np?.playing == true) Glyph.PAUSE else Glyph.PLAY, "play", Modifier.focusRequester(playRequester), size = 22.dp) { actions.spotify("toggle") }
+                    CircleButton(Glyph.NEXT, "next", size = 22.dp) { actions.spotify("next") }
+                }
             }
             Text(np?.track ?: "Nothing playing", style = Type.Body.copy(fontWeight = FontWeight.Bold), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(np?.artist ?: "Spotify is idle", style = Type.Label.copy(color = Ink2), maxLines = 1)
+            Text(np?.artist ?: "Spotify is idle", style = Type.Label.copy(color = Ink2), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-    }
-    Spacer(Modifier.height(4.dp))
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-        CircleButton(Glyph.PREV, "prev") { actions.spotify("prev") }
-        CircleButton(if (np?.playing == true) Glyph.PAUSE else Glyph.PLAY, "play", Modifier.focusRequester(playRequester)) { actions.spotify("toggle") }
-        CircleButton(Glyph.NEXT, "next") { actions.spotify("next") }
-        // the position ticks here, once a second while playing, so only this block redraws (not Home)
-        val pos by produceState(np?.positionSec ?: 0, np) {
-            while (np?.playing == true) { delay(1000); value = (value + 1).let { if (np.durationSec > 0) it.coerceAtMost(np.durationSec) else it } }
-        }
-        val frac = if (np == null || np.durationSec == 0) 0f else pos.toFloat() / np.durationSec
-        Box(Modifier.height(3.dp).width(80.dp).clip(RoundedCornerShape(2.dp)).background(Color(0x2EFFFFFF))) {
-            Box(Modifier.fillMaxSize().graphicsLayer { scaleX = frac; transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f) }.background(Color.White))
-        }
-        val left = ((np?.durationSec ?: 0) - pos).coerceAtLeast(0)
-        Text("-${left / 60}:${(left % 60).toString().padStart(2, '0')}", style = Type.Caption.copy(color = Ink2))
     }
 }
 
@@ -146,6 +139,6 @@ private fun NewsBlock(n: NewsItem, actions: HomeActions) {
             .padding(horizontal = 4.dp, vertical = 2.dp),
     ) {
         Text("News · ${n.source}", style = Type.Caption.copy(color = Ink3, fontWeight = FontWeight.SemiBold), maxLines = 1)
-        Text(n.headline, style = Type.Label.copy(color = Ink, fontWeight = FontWeight.Medium), maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(n.headline, style = Type.Body.copy(color = Ink, fontWeight = FontWeight.Medium), maxLines = 4, overflow = TextOverflow.Ellipsis)
     }
 }

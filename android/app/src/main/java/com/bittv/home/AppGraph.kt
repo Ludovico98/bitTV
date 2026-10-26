@@ -26,7 +26,7 @@ class AppGraph(context: Context) {
     val network = com.bittv.home.platform.NetworkScanner(context.applicationContext)
     // Ludovico lives in Redhill, Surrey
     val weather = com.bittv.home.weather.LiveWeather({ url -> httpGet(url) }, lat = 51.24, lon = -0.17)
-    val news = com.bittv.home.news.LiveNews { url -> httpGet(url) }
+    val news = com.bittv.home.news.LiveNews({ url -> httpGet(url) })
     val speech = com.bittv.home.platform.SpeechListener(com.bittv.home.platform.AndroidSpeechEngine(context.applicationContext))
     val catalog = CatalogRepo(
         source = BuildConfig.TMDB_KEY.takeIf { it.isNotBlank() }?.let { key -> TmdbCatalog(key) { url, auth -> httpGet(url, auth) } },

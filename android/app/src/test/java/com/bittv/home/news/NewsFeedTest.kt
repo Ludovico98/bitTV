@@ -60,4 +60,28 @@ class NewsFeedTest {
         assertEquals("BBC News · 15 min ago", item.source)
         assertEquals("https://www.bbc.co.uk/news/articles/c1?at_medium=RSS&at_campaign=rss", item.link)
     }
+
+    private fun h(title: String, source: String, minAgo: Long) = Headline(title, "https://x/$title", at0745 - minAgo * 60_000, source)
+
+    @Test fun sitesTakeTurnsNewestSiteFirstAndOldOrRepeatedStoriesAreLeftOut() {
+        val bbc = listOf(h("Election result", "BBC News", 30), h("Watch: a clip", "BBC News", 5), h("Storm warning", "BBC News", 90))
+        val nasa = listOf(h("Artemis crew named", "NASA", 10), h("Old mission", "NASA", 4 * 24 * 60))
+        val ars = listOf(h("New chip", "Ars Technica", 60), h("Election Result", "Ars Technica", 70))
+        val turns = NewsFeed.rotation(listOf(bbc, nasa, ars), at0745)
+        assertEquals(listOf("Artemis crew named", "Election result", "New chip", "Storm warning"), turns.map { it.title })
+    }
+
+    @Test fun theHomeItemNamesItsOwnSite() =
+        assertEquals("NASA · 10 min ago", NewsFeed.item(h("Artemis crew named", "NASA", 10), at0745).source)
+
+    @Test fun aSiteThatCantBeReadKeepsItsLastStories() = kotlinx.coroutines.test.runTest {
+        val a = NewsFeed.Source("A", "a"); val b = NewsFeed.Source("B", "b")
+        var bUp = true
+        fun feed(title: String) = rss.replace("Lula re-elected for a fourth term in Brazil", title)
+        val live = LiveNews({ url -> if (url == "a") feed("From A") else if (bUp) feed("From B") else null }, listOf(a, b))
+        assertTrue(live.rotation(at0745)!!.any { it.title == "From B" })
+        bUp = false
+        assertTrue(live.rotation(at0745)!!.any { it.title == "From B" && it.source == "B" })
+        assertNull(LiveNews({ null }, listOf(a)).rotation(at0745))
+    }
 }

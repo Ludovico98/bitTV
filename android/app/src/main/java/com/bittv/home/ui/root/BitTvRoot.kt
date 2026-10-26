@@ -133,18 +133,23 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
             while (true) { graph.weather.current()?.let { weatherNow = it }; kotlinx.coroutines.delay(30 * 60_000L) }
         }
     }
-    // the headline (BBC News's top story): read every 15 minutes while Home is in front, its age said again each
-    // minute; offline, the last one stays and the feed is tried again a minute later. The demo keeps a fixed one.
+    // the headline, taking turns between the news sites: the feeds are read every half hour while Home is in front,
+    // the story changes every 7 minutes and its age is said again each minute; offline, the last one stays and the
+    // feeds are tried again a minute later. The demo keeps a fixed one.
     var news by remember { mutableStateOf(if (demoCatalog) listOf(NewsItem("Space mission returns safely after 200 days in orbit", "BBC News · 12 min ago")) else emptyList()) }
-    var newsTop by remember { mutableStateOf<com.bittv.home.news.Headline?>(null) }
+    var newsTurns by remember { mutableStateOf<List<com.bittv.home.news.Headline>>(emptyList()) }
     var newsReadAt by remember { mutableStateOf(0L) }
+    var newsTurn by remember { mutableStateOf(0) }
+    var newsTurnAt by remember { mutableStateOf(0L) }
     LaunchedEffect(demoCatalog) {
         if (!demoCatalog) lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             while (true) {
                 val now = System.currentTimeMillis()
-                if (newsTop == null || now - newsReadAt >= com.bittv.home.news.NewsFeed.REFRESH_MS)
-                    graph.news.headlines()?.let { newsTop = com.bittv.home.news.NewsFeed.top(it); newsReadAt = now }
-                newsTop?.let { news = listOf(com.bittv.home.news.NewsFeed.item(it, now)) }
+                if (newsTurns.isEmpty() || now - newsReadAt >= com.bittv.home.news.NewsFeed.REFRESH_MS)
+                    graph.news.rotation(now)?.let { newsTurns = it; newsReadAt = now }
+                if (newsTurnAt == 0L) newsTurnAt = now
+                else if (now - newsTurnAt >= com.bittv.home.news.NewsFeed.ROTATE_MS) { newsTurn++; newsTurnAt = now }
+                newsTurns.takeIf { it.isNotEmpty() }?.let { news = listOf(com.bittv.home.news.NewsFeed.item(it[newsTurn % it.size], now)) }
                 kotlinx.coroutines.delay(60_000L)
             }
         }
