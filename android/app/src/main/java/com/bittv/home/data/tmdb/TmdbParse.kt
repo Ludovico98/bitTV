@@ -114,7 +114,8 @@ object TmdbParse {
         titles.forEach { t ->
             put(JSONObject().put("id", t.id).put("name", t.name).put("type", t.type.name).put("genres", JSONArray(t.genres))
                 .put("services", JSONArray(t.services.map { it.name })).put("c1", t.c1).put("c2", t.c2).put("year", t.year)
-                .put("score", t.score).put("font", t.font.name).put("blurb", t.blurb).put("art", t.art ?: JSONObject.NULL))
+                .put("score", t.score).put("font", t.font.name).put("blurb", t.blurb).put("art", t.art ?: JSONObject.NULL)
+                .put("buy", JSONArray(t.buy.map { it.name })).put("elsewhere", JSONArray(t.elsewhere)))
         }
     }.toString()
 
@@ -123,11 +124,13 @@ object TmdbParse {
         val arr = JSONArray(json)
         (0 until arr.length()).map { i ->
             val o = arr.getJSONObject(i)
-            fun strings(k: String) = o.getJSONArray(k).let { a -> (0 until a.length()).map { a.getString(it) } }
+            fun strings(k: String) = (o.optJSONArray(k) ?: JSONArray()).let { a -> (0 until a.length()).map { a.getString(it) } }
             Title(o.getString("id"), o.getString("name"), TitleType.valueOf(o.getString("type")), strings("genres"),
                 strings("services").map { Svc.valueOf(it) }, o.getLong("c1"), o.getLong("c2"), o.getInt("year"),
                 o.getDouble("score"), TitleFont.valueOf(o.getString("font")), o.getString("blurb"),
-                if (o.isNull("art")) null else o.getString("art"))
+                if (o.isNull("art")) null else o.getString("art"),
+                // older caches have neither
+                strings("buy").map { Svc.valueOf(it) }, strings("elsewhere"))
         }
     }.getOrNull()
 }

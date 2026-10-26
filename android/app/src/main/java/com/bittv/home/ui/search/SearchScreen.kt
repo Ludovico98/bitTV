@@ -16,9 +16,20 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.gestures.BringIntoViewSpec
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
+import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -31,7 +42,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
@@ -45,6 +58,7 @@ import com.bittv.home.model.Svc
 import com.bittv.home.model.Title
 import com.bittv.home.data.tmdb.TmdbSearch
 import com.bittv.home.model.mainService
+import com.bittv.home.model.offer
 import com.bittv.home.search.QueryMatcher
 import com.bittv.home.ui.components.AppIcon
 import com.bittv.home.ui.components.FocusTile
@@ -66,10 +80,17 @@ internal val TileW = 110.dp
 private val KEY_ROWS = listOf("1234567890", "qwertyuiop", "asdfghjkl-", "zxcvbnm'.⌫")
 private val DEMO_VOICE = listOf("crime series", "the long tide", "comedy movies", "sci-fi on apple tv", "commissario")
 
+/** A results column: two tiles across, two rows down, scrolling down for more. */
+private val ColumnW = TileW * 2 + TileGap
+private val GridH = 62.dp * 2 + TileGap
+
 /**
- * Search over titles on his apps: a QWERTY keyboard for typing and one Speak button in the search bar for voice.
- * [listen] returns what was said (plan 2: Android speech recognition); the default plays demo phrases.
+ * Search over every title: a QWERTY keyboard for typing and one Speak button in the search bar for voice, which has
+ * focus when the page opens. Results split into two columns, Included (on his subscriptions) and Purchase (a service
+ * he doesn't have, to rent or buy), with Similar Content underneath. [listen] returns what was said (plan 2: Android
+ * speech recognition); the default plays demo phrases.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SearchScreen(
     pool: List<Title>, subs: Set<Svc>, apps: List<AppEntry>, onOpen: (Title) -> Unit, onBack: () -> Unit,
@@ -78,6 +99,8 @@ fun SearchScreen(
     onQueryChange: ((String) -> Unit)? = null,
     /** Online search (TMDB) for titles beyond the downloaded catalogue; null on the demo. */
     online: (suspend (String) -> List<Title>)? = null,
+    /** What TMDB recommends after a title, for Similar Content; null on the demo. */
+    related: (suspend (Title) -> List<Title>)? = null,
 ) {
     var local by remember { mutableStateOf("") }
     val query = query ?: local
@@ -90,15 +113,29 @@ fun SearchScreen(
     LaunchedEffect(query) {
         if (online == null || query.isBlank()) { onlineFound = null; searching = false; return@LaunchedEffect }
         searching = true
-        kotlinx.coroutines.delay(350)
+        delay(350)
         onlineFound = query to online(query)
         searching = false
     }
-    val result = remember(localResult, onlineFound, subs) {
-        onlineFound?.takeIf { it.first == query }?.let { TmdbSearch.merge(localResult, it.second, subs) } ?: localResult
+    val found = remember(localResult, onlineFound, subs, pool) {
+        onlineFound?.takeIf { it.first == query }?.let { TmdbSearch.merge(localResult, it.second, subs, pool, query) } ?: localResult
+    }
+    // Similar Content leads with what TMDB recommends after the top match
+    val top = if (query.isBlank()) null else (found.included + found.purchase).firstOrNull()
+    var recs by remember { mutableStateOf<Pair<String, List<Title>>?>(null) }
+    LaunchedEffect(top?.id) {
+        if (related == null || top == null) return@LaunchedEffect
+        if (recs?.first != top.id) recs = top.id to related(top)
+    }
+    val result = remember(found, recs, top?.id) {
+        recs?.takeIf { it.first == top?.id && it.second.isNotEmpty() }
+            ?.let { found.copy(similar = QueryMatcher.similar(found.included + found.purchase, pool, subs, it.second)) } ?: found
     }
     val qFocus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { qFocus.requestFocus() }
+    val micFocus = remember { FocusRequester() }
+    val includedFocus = remember { FocusRequester() }
+    val purchaseFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { micFocus.requestFocus() }
     LaunchedEffect(listening) {
         if (!listening) return@LaunchedEffect
         val said = listen()
@@ -125,7 +162,15 @@ fun SearchScreen(
             )
             Text("${subs.size} apps", style = Type.Caption.copy(color = Ink3))
             Spacer(Modifier.width(9.dp))
-            SpeakButton(listening) { listening = true }
+            // Down from Speak: the keyboard until there is something to show, then the first results
+            SpeakButton(listening, Modifier.focusRequester(micFocus).focusProperties {
+                down = when {
+                    query.isBlank() -> qFocus
+                    result.included.isNotEmpty() -> includedFocus
+                    result.purchase.isNotEmpty() -> purchaseFocus
+                    else -> qFocus
+                }
+            }) { listening = true }
         }
         // keyboard
         Column(
@@ -151,39 +196,117 @@ fun SearchScreen(
             }
         }
         // results
-        LazyVerticalGrid(
-            GridCells.Fixed(4),
-            Modifier.padding(start = 410.dp, top = 88.dp).fillMaxHeight(),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 10.dp, end = 40.dp, top = 8.dp, bottom = 80.dp),
-            horizontalArrangement = Arrangement.spacedBy(TileGap), verticalArrangement = Arrangement.spacedBy(TileGap),
+        Column(
+            Modifier.padding(start = 410.dp, top = 88.dp).fillMaxSize().verticalScroll(rememberScrollState())
+                .padding(start = 10.dp, end = 40.dp, top = 8.dp, bottom = 80.dp),
         ) {
-            item(span = { GridItemSpan(4) }) {
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text(if (query.isBlank()) "Top picks on your apps" else "Results for “${query.trim()}”", style = Type.Title.copy(fontSize = 15.sp))
-                    if (query.isNotBlank()) { Spacer(Modifier.width(6.dp)); Text("${result.results.size} on your apps", style = Type.Label.copy(color = Ink3)) }
+            if (query.isBlank()) {
+                Text("Top picks on your apps", style = Type.Title.copy(fontSize = 15.sp))
+                Spacer(Modifier.height(TileGap))
+                TileFlow(result.included.take(12), "result", subs, apps, onOpen)
+            } else {
+                Text("Results for “${query.trim()}”", style = Type.Title.copy(fontSize = 15.sp))
+                Spacer(Modifier.height(14.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(TileGap)) {
+                    ResultColumn("Included", "on your apps", result.included, "result", includedFocus, subs, apps, onOpen,
+                        empty = if (searching) "Searching…" else "Nothing on your apps")
+                    ResultColumn("Purchase", "rent, buy or subscribe", result.purchase, "purchase", purchaseFocus, subs, apps, onOpen,
+                        empty = if (searching) "Searching…" else "Nothing else matches")
                 }
             }
-            if (result.results.isEmpty()) {
-                item(span = { GridItemSpan(4) }) {
-                    Text(if (searching) "Searching…" else "Nothing on your apps matches “${query.trim()}”.", style = Type.Body.copy(color = Ink2))
-                }
-            }
-            itemsIndexed(result.results, key = { _, t -> "r:" + t.id }) { i, t -> ResultTile(t, subs, apps, "result:$i", onOpen) }
             if (result.similar.isNotEmpty()) {
-                item(span = { GridItemSpan(4) }) { Text("Similar Content", style = Type.Title.copy(fontSize = 15.sp), modifier = Modifier.padding(top = 10.dp)) }
-                itemsIndexed(result.similar, key = { _, t -> "s:" + t.id }) { i, t -> ResultTile(t, subs, apps, "similar:$i", onOpen) }
+                Text("Similar Content", style = Type.Title.copy(fontSize = 15.sp), modifier = Modifier.padding(top = 28.dp))
+                Spacer(Modifier.height(TileGap))
+                TileFlow(result.similar, "similar", subs, apps, onOpen)
             }
         }
     }
 }
 
+/**
+ * One of the two result columns: its heading, then its tiles two across in reading order, two rows tall, scrolling
+ * a whole row at a time for more. The grid reaches half a gap above and below the rows so a focused tile's glow
+ * isn't cut off square; it can't reach a neighbouring row, which is a full gap away.
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun ResultTile(t: Title, subs: Set<Svc>, apps: List<AppEntry>, tag: String, onOpen: (Title) -> Unit) {
+private fun ResultColumn(label: String, hint: String, titles: List<Title>, tag: String, focus: FocusRequester,
+                         subs: Set<Svc>, apps: List<AppEntry>, onOpen: (Title) -> Unit, empty: String) {
+    Column(Modifier.width(ColumnW).testTag("col:$tag")) {
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(label, style = Type.Label.copy(color = Ink, fontWeight = FontWeight.Bold))
+            Spacer(Modifier.width(6.dp))
+            Text(if (titles.isEmpty()) hint else "${titles.size} · $hint", style = Type.Caption.copy(color = Ink3), maxLines = 1)
+        }
+        Spacer(Modifier.height(10.dp))
+        Box(Modifier.width(ColumnW).height(GridH)) {
+            if (titles.isEmpty()) Text(empty, style = Type.Body.copy(color = Ink2))
+            else CompositionLocalProvider(LocalBringIntoViewSpec provides RowSnap) {
+                val state = rememberLazyGridState()
+                val first = remember { FocusRequester() }
+                var inside by remember { mutableStateOf(false) }
+                // online matches arrive after the local ones and can rank above them: show the new best match, unless
+                // he is already browsing this column (the grid would otherwise hold its old first tile at the top)
+                LaunchedEffect(titles.first().id) { if (!inside) state.scrollToItem(0) }
+                LazyVerticalGrid(
+                    GridCells.Fixed(2),
+                    Modifier.requiredHeight(GridH + TileGap).fillMaxWidth().onFocusChanged { inside = it.hasFocus }.focusRequester(focus)
+                        // coming in from Speak or the keyboard: the best match, not whichever tile is nearest (that can be
+                        // one composed below the fold, which then scrolls the column away from the top)
+                        .focusProperties { onEnter = { if (state.firstVisibleItemIndex == 0) first.requestFocus() } }
+                        .focusGroup(),
+                    state = state,
+                    contentPadding = PaddingValues(vertical = TileGap / 2),
+                    horizontalArrangement = Arrangement.spacedBy(TileGap), verticalArrangement = Arrangement.spacedBy(TileGap),
+                ) {
+                    itemsIndexed(titles, key = { _, t -> t.id }) { i, t ->
+                        ResultTile(t, subs, apps, "$tag:$i", onOpen, if (i == 0) Modifier.focusRequester(first) else Modifier)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Scrolls a result column just enough to show the focused row inside the half-gap margins, so the two rows on show
+ * always sit square in the column (the TV's own rule would hold the focused row 30 % down and cut rows in half).
+ */
+@OptIn(ExperimentalFoundationApi::class)
+private object RowSnap : BringIntoViewSpec {
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
+        val pad = (containerSize - size * 2) / 4   // the half gap: the viewport is two rows, a gap between, a half gap round
+        return when {
+            offset < pad -> offset - pad
+            offset + size > containerSize - pad -> offset + size - (containerSize - pad)
+            else -> 0f
+        }
+    }
+}
+
+/** Tiles four across, the same gaps across and down. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun TileFlow(titles: List<Title>, tag: String, subs: Set<Svc>, apps: List<AppEntry>, onOpen: (Title) -> Unit) {
+    FlowRow(maxItemsInEachRow = 4, horizontalArrangement = Arrangement.spacedBy(TileGap), verticalArrangement = Arrangement.spacedBy(TileGap)) {
+        titles.forEachIndexed { i, t -> ResultTile(t, subs, apps, "$tag:$i", onOpen) }
+    }
+}
+
+/** A title's tile: its app's icon top right and, for one not on his subscriptions, how he could get it top left (clear of the name). */
+@Composable
+internal fun ResultTile(t: Title, subs: Set<Svc>, apps: List<AppEntry>, tag: String, onOpen: (Title) -> Unit,
+                        modifier: Modifier = Modifier) {
     FocusTile(onClick = { onOpen(t) }, width = TileW, height = 62.dp,
-        modifier = Modifier.testTag(tag).semantics { contentDescription = t.name }) {
+        modifier = modifier.testTag(tag).semantics { contentDescription = t.name }) {
         PosterArt(t, Modifier.fillMaxSize(), titleScale = 0.72f, overlay = {
             val svc = t.mainService(subs)
-            apps.firstOrNull { it.svc == svc }?.let { AppIcon(it, 14.dp, 14.dp, Modifier.align(Alignment.TopEnd).padding(5.dp), radius = 4.dp) }
+            svc?.let { s -> apps.firstOrNull { it.svc == s } }?.let { AppIcon(it, 14.dp, 14.dp, Modifier.align(Alignment.TopEnd).padding(5.dp), radius = 4.dp) }
+            t.offer(subs)?.let { o ->
+                Text(o, style = Type.Caption.copy(fontSize = 9.sp, color = Ink, fontWeight = FontWeight.SemiBold), maxLines = 1,
+                    modifier = Modifier.align(Alignment.TopStart).padding(5.dp)
+                        .background(Color(0xB3000000), RoundedCornerShape(4.dp)).padding(horizontal = 5.dp, vertical = 1.dp))
+            }
         })
     }
 }
@@ -199,10 +322,10 @@ private fun Key(label: String, tag: String, width: androidx.compose.ui.unit.Dp, 
 }
 
 @Composable
-private fun SpeakButton(listening: Boolean, onClick: () -> Unit) {
+private fun SpeakButton(listening: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val (focused, look) = rememberFocusLook()
     Row(
-        Modifier.testTag("mic").then(look).clickable(remember { MutableInteractionSource() }, null, onClick = onClick)
+        modifier.testTag("mic").then(look).clickable(remember { MutableInteractionSource() }, null, onClick = onClick)
             .height(30.dp).background(if (focused) Color.White else Color(0x335B9BFF), RoundedCornerShape(15.dp)).padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

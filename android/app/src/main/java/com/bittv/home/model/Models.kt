@@ -34,6 +34,10 @@ data class Title(
     val blurb: String,
     /** TMDB backdrop path ("/abc.jpg"); null for the demo posters, which are drawn. */
     val art: String? = null,
+    /** His apps that rent or sell it (Amazon's store opens in Prime Video, Apple's in Apple TV). */
+    val buy: List<Svc> = emptyList(),
+    /** Where else it streams or sells that isn't one of his apps ("Crunchyroll", "Sky Store"). */
+    val elsewhere: List<String> = emptyList(),
 )
 
 /** A TMDB image URL at one of its fixed widths (300, 780, 1280). */
@@ -55,8 +59,19 @@ data class Prefs(
 
 fun Title.isAvailable(subs: Set<Svc>): Boolean = services.any { it in subs }
 
-/** The service a title opens in: the first one he has, otherwise the first one listed. */
-fun Title.mainService(subs: Set<Svc>): Svc = services.firstOrNull { it in subs } ?: services.first()
+/**
+ * The app a title opens in: the first service he has, otherwise the first one it streams on, otherwise an app that
+ * rents or sells it; null when none of his apps has it at all.
+ */
+fun Title.mainService(subs: Set<Svc>): Svc? = services.firstOrNull { it in subs } ?: services.firstOrNull() ?: buy.firstOrNull()
+
+/** For a title not on his subscriptions: how he could get it ("Paramount+", "Rent or buy", "Crunchyroll"); null if nowhere. */
+fun Title.offer(subs: Set<Svc>): String? = when {
+    isAvailable(subs) -> null
+    services.isNotEmpty() -> services.first().label
+    buy.isNotEmpty() -> "Rent or buy"
+    else -> elsewhere.firstOrNull()
+}
 
 enum class WeatherKind { SUN, CLOUD, RAIN }
 

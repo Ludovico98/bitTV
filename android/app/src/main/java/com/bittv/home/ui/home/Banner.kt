@@ -128,9 +128,9 @@ private fun SlideInfo(t: Title, subs: Set<Svc>, apps: List<AppEntry>, modifier: 
     val svc = t.mainService(subs)
     Column(modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            apps.firstOrNull { it.svc == svc }?.let { AppIcon(it, 17.dp, 17.dp, radius = 4.5.dp) }
+            svc?.let { s -> apps.firstOrNull { it.svc == s } }?.let { AppIcon(it, 17.dp, 17.dp, radius = 4.5.dp) }
             Spacer(Modifier.width(6.dp))
-            Text("FEATURED ON ${svc.label.uppercase()}", style = Type.Kicker.copy(color = Color(0xB3FFFFFF)))
+            Text("FEATURED ON ${svc?.label?.uppercase().orEmpty()}", style = Type.Kicker.copy(color = Color(0xB3FFFFFF)))
         }
         Spacer(Modifier.height(7.dp))
         Text(if (t.font == TitleFont.BEBAS || t.font == TitleFont.OSWALD) t.name.uppercase() else t.name,

@@ -43,21 +43,65 @@ class TmdbSearchTest {
         assertTrue(urls.first { "/search/multi" in it }.contains("query=stranger%20things"))
     }
 
-    @Test fun rentalsDontCountAndItalianServicesComeFromItaly() = runTest {
+    @Test fun rentalsAreKeptApartAndItalianServicesComeFromItaly() = runTest {
         val sw = TmdbSearch("k", fetcher()).search("strange").first { it.id == "mv1234" }
-        assertEquals(listOf(Svc.DISNEY, Svc.RAIPLAY), sw.services)   // not the Apple TV store rental
+        assertEquals(listOf(Svc.DISNEY, Svc.RAIPLAY), sw.services)   // streaming only
+        assertEquals(listOf(Svc.APPLETV), sw.buy)                     // the Apple TV store rents it, in the Apple TV app
+    }
+
+    @Test fun aShowOnlyOnAnotherServiceIsStillFound() {
+        // Attack on Titan, the anime: Crunchyroll (also as an Amazon channel), and stores
+        val w = TmdbSearch.where("""{"results":{"GB":{"flatrate":[{"provider_name":"Crunchyroll"},{"provider_name":"Crunchyroll Amazon Channel"}],
+            "buy":[{"provider_name":"Apple TV Store"},{"provider_name":"Amazon Video"},{"provider_name":"Sky Store"}]}}}""")
+        assertEquals(emptyList<Svc>(), w.services)
+        assertEquals(listOf(Svc.PRIME, Svc.APPLETV), w.buy)
+        assertEquals(listOf("Crunchyroll", "Sky Store"), w.elsewhere)
+    }
+
+    @Test fun relatedAreTheRecommendationsElseTheSimilarTitles() = runTest {
+        val urls = mutableListOf<String>()
+        val base = fetcher(urls)
+        val related = TmdbSearch("k") { url, auth ->
+            when {
+                "/tv/95557/recommendations" in url -> """{"results":[]}"""
+                "/tv/95557/similar" in url -> multi.replace("\"media_type\":\"movie\",", "")
+                else -> base(url, auth)
+            }
+        }.related(t("tv95557", Svc.PRIME))
+        assertEquals(listOf("tv66732", "tv99", "tv1234"), related.map { it.id })
+        assertEquals(emptyList<Title>(), TmdbSearch("k", base).related(t("longtide", Svc.NETFLIX)))   // a demo title
+    }
+
+    @Test fun onlineOnlyMatchStillGetsSimilarContent() {
+        // Invincible came from the online search alone: the pool's titles that share its genres fill Similar Content
+        val inv = t("tv95557", Svc.PRIME, genres = listOf("Animation", "Sci-Fi & Fantasy"))
+        val pool = listOf(t("tv1", Svc.NETFLIX, listOf("Animation")), t("tv2", Svc.NETFLIX, listOf("Comedy")), t("tv3", Svc.PARAMOUNT, listOf("Animation")))
+        val merged = TmdbSearch.merge(SearchResult(emptyList(), emptyList(), emptyList()), listOf(inv), setOf(Svc.NETFLIX, Svc.PRIME), pool)
+        assertEquals(listOf("tv95557"), merged.included.map { it.id })
+        assertEquals(listOf("tv1"), merged.similar.map { it.id })
     }
 
     @Test fun offlineFindsNothing() = runTest {
         assertEquals(emptyList<Title>(), TmdbSearch("k") { _, _ -> null }.search("anything"))
     }
 
-    @Test fun onlineResultsJoinTheLocalOnesWithoutRepeats() {
-        fun t(id: String, svc: Svc) = Title(id, id, TitleType.SERIES, emptyList(), listOf(svc), 0, 0, 2020, 5.0, TitleFont.INTER, "")
-        val local = SearchResult(listOf(t("tv1", Svc.NETFLIX)), listOf(t("tv9", Svc.NETFLIX)))
-        val merged = TmdbSearch.merge(local, listOf(t("tv1", Svc.NETFLIX), t("tv2", Svc.NETFLIX), t("tv3", Svc.PARAMOUNT), t("tv9", Svc.NETFLIX)),
-            subs = setOf(Svc.NETFLIX))
-        assertEquals(listOf("tv1", "tv2", "tv9"), merged.results.map { it.id })   // tv3 isn't on his apps
+    private fun t(id: String, svc: Svc, genres: List<String> = emptyList()) =
+        Title(id, id, TitleType.SERIES, genres, listOf(svc), 0, 0, 2020, 5.0, TitleFont.INTER, "")
+
+    @Test fun onlineResultsJoinTheLocalOnesWithoutRepeatsInTheirColumn() {
+        val local = SearchResult(listOf(t("tv1", Svc.NETFLIX)), emptyList(), listOf(t("tv9", Svc.NETFLIX)))
+        val nowhere = t("tv4", Svc.NETFLIX).copy(services = emptyList())
+        val merged = TmdbSearch.merge(local, listOf(t("tv1", Svc.NETFLIX), nowhere, t("tv2", Svc.NETFLIX), t("tv3", Svc.PARAMOUNT), t("tv9", Svc.NETFLIX)),
+            subs = setOf(Svc.NETFLIX), pool = emptyList())
+        assertEquals(listOf("tv1", "tv2", "tv9"), merged.included.map { it.id })
+        assertEquals(listOf("tv3", "tv4"), merged.purchase.map { it.id })   // somewhere to get it before nowhere
         assertEquals(emptyList<String>(), merged.similar.map { it.id })
+    }
+
+    @Test fun titlesNamedLikeTheQueryLeadOverLocalNearMisses() {
+        fun named(id: String, name: String, svc: Svc) = t(id, svc).copy(name = name)
+        val local = SearchResult(emptyList(), listOf(named("mv1", "Titanic", Svc.DISNEY)), emptyList())
+        val merged = TmdbSearch.merge(local, listOf(named("tv1429", "Attack on Titan", Svc.PARAMOUNT)), setOf(Svc.NETFLIX), emptyList(), "attack on titan")
+        assertEquals(listOf("tv1429", "mv1"), merged.purchase.map { it.id })
     }
 }

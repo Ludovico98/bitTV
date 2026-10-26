@@ -59,6 +59,42 @@ class SearchScreenTest {
         rule.onNode(hasTestTag("result:1") and SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("Tenements"))).assertExists()
     }
 
+    private fun press(k: Key) { rule.onRoot().performKeyInput { pressKey(k) }; rule.waitForIdle() }
+
+    @Test
+    fun theSpeakButtonHasFocusWhenSearchOpensAndDownGoesToTheKeyboard() {
+        setSearch()
+        rule.waitForIdle()
+        rule.onNodeWithTag("mic").assertIsFocused()
+        press(Key.DirectionDown)
+        rule.onNodeWithTag("key:q").assertIsFocused()
+    }
+
+    @Test
+    fun matchesOffHisAppsGoInThePurchaseColumnAndDownFromSpeakReachesIncluded() {
+        rule.setContent { BitTvTheme { SearchScreen(DemoCatalog.titles, Prefs().subs, DemoCatalog.apps, onOpen = {}, onBack = {}, query = "harbour") } }
+        rule.waitForIdle()
+        rule.onNodeWithTag("col:result").assertExists()
+        rule.onNode(hasTestTag("purchase:0") and SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("Red Harbour"))).assertExists()
+        rule.onNodeWithText("Paramount+", useUnmergedTree = true).assertExists()   // how he could get it
+        rule.onNode(hasTestTag("result:0") and SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("Harbour Lights"))).assertExists()
+        rule.onAllNodesWithText("Similar Content").assertCountEquals(1)
+        press(Key.DirectionDown)
+        rule.onNodeWithTag("result:0").assertIsFocused()
+    }
+
+    @Test
+    fun downFromSpeakLandsOnTheBestMatchEvenInALongColumn() {
+        // every title is a match ("e") and none is on his apps: a long Purchase column, Included empty
+        rule.setContent { BitTvTheme { SearchScreen(DemoCatalog.titles, emptySet(), DemoCatalog.apps, onOpen = {}, onBack = {}, query = "e") } }
+        rule.waitForIdle()
+        press(Key.DirectionDown)
+        rule.onNodeWithTag("purchase:0").assertIsFocused()
+        // Down walks the column a row at a time
+        press(Key.DirectionDown)
+        rule.onNodeWithTag("purchase:2").assertIsFocused()
+    }
+
     @Test
     fun speakButtonIsTheOnlyMic() {
         setSearch()

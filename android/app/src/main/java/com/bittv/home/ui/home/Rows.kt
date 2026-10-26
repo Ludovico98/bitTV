@@ -168,7 +168,7 @@ private fun TitleTile(item: RowItem.Show, rowKey: String, subs: Set<Svc>, apps: 
     FocusTile(onClick = onOpen, onFocus = onFocus, width = 160.dp, height = 90.dp,
         modifier = modifier.testTag("tile:$rowKey:${t.id}")) {
         PosterArt(t, Modifier.fillMaxSize(), overlay = {
-            apps.firstOrNull { it.svc == svc }?.let { AppIcon(it, 18.dp, 18.dp, Modifier.align(Alignment.TopEnd).padding(6.dp), radius = 5.dp) }
+            svc?.let { s -> apps.firstOrNull { it.svc == s } }?.let { AppIcon(it, 18.dp, 18.dp, Modifier.align(Alignment.TopEnd).padding(6.dp), radius = 5.dp) }
             if (item.star) GlyphIcon(Glyph.STAR_FILLED, Color(0xFFFFD84D), Modifier.align(Alignment.TopStart).padding(7.dp).size(12.dp))
             item.progress?.let { p ->
                 Box(Modifier.align(Alignment.BottomCenter).padding(horizontal = 9.dp, vertical = 6.dp).fillMaxWidth().height(3.dp)

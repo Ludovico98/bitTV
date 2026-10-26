@@ -285,6 +285,7 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
                     query = searchQuery, onQueryChange = { searchQuery = it })
                 else SearchScreen(catalog.titles, effective.subs, apps, onOpen = { push(Screen.Details(it)) }, onBack = ::pop, listen = listen,
                     online = graph.search?.let { s -> { q: String -> s.search(q) } },
+                    related = graph.search?.let { s -> { t: Title -> s.related(t) } },
                     query = searchQuery, onQueryChange = { searchQuery = it })
                 is Screen.Details -> { if (!demoCatalog) LaunchedEffect(top.title.id) { top.title.services.forEach { linkFor(top.title, it) } }
                 // keyed: a similar title opened from here is a new page (its own scroll and focus), Back returns to this one

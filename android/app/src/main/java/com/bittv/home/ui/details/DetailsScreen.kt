@@ -51,6 +51,7 @@ import com.bittv.home.model.Progress
 import com.bittv.home.model.Svc
 import com.bittv.home.model.Title
 import com.bittv.home.model.TitleFont
+import com.bittv.home.model.isAvailable
 import com.bittv.home.model.mainService
 import com.bittv.home.ui.components.AppIcon
 import com.bittv.home.ui.components.PillButton
@@ -76,7 +77,8 @@ fun DetailsScreen(
     related: List<Title> = emptyList(), onOpen: (Title) -> Unit = {},
 ) {
     val svc = title.mainService(prefs.subs)
-    val app = apps.firstOrNull { it.svc == svc }
+    val app = svc?.let { s -> apps.firstOrNull { it.svc == s } }
+    val owned = title.isAvailable(prefs.subs)
     val saved = title.id in prefs.watchLater
     val playFocus = remember { FocusRequester() }
     LaunchedEffect(title.id) { playFocus.requestFocus() }
@@ -97,7 +99,8 @@ fun DetailsScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             app?.let { AppIcon(it, 17.dp, 17.dp, radius = 4.5.dp) }
                             Spacer(Modifier.width(6.dp))
-                            Text(svc.label.uppercase(), style = Type.Kicker.copy(color = Color(0xB3FFFFFF)))
+                            Text((svc?.label ?: title.elsewhere.firstOrNull() ?: "Not streaming in the UK").uppercase(),
+                                style = Type.Kicker.copy(color = Color(0xB3FFFFFF)))
                         }
                         Spacer(Modifier.height(9.dp))
                         Text(if (title.font == TitleFont.BEBAS || title.font == TitleFont.OSWALD) title.name.uppercase() else title.name,
@@ -110,12 +113,24 @@ fun DetailsScreen(
                         }
                         Spacer(Modifier.height(12.dp))
                         Text(title.blurb, style = Type.Body.copy(fontSize = 15.sp, color = Color(0xE0FFFFFF), lineHeight = 21.sp))
+                        // a title not on his subscriptions says where else it is
+                        if (!owned && title.elsewhere.isNotEmpty()) {
+                            Spacer(Modifier.height(10.dp))
+                            Text("Also on ${title.elsewhere.take(3).joinToString(", ")}", style = Type.Label.copy(color = Ink2))
+                        }
                         Spacer(Modifier.height(20.dp))
                         Row(Modifier.onFocusChanged { spec.top = it.hasFocus }, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                            PillButton("${if (progress != null) "Resume" else "Play"} on ${svc.label}", { onPlay(svc) },
-                                Modifier.focusRequester(playFocus).testTag("play"),
+                            if (svc != null) PillButton(
+                                when {
+                                    owned -> "${if (progress != null) "Resume" else "Play"} on ${svc.label}"
+                                    svc in title.services -> "Open in ${svc.label}"
+                                    else -> "Rent or buy on ${svc.label}"
+                                },
+                                { onPlay(svc) }, Modifier.focusRequester(playFocus).testTag("play"),
                                 leading = { app?.let { a -> AppIcon(a, 20.dp, 20.dp, radius = 5.dp) } })
-                            PillButton(if (saved) "In Watch Later" else "Watch Later", onToggleWatchLater, Modifier.testTag("watchlater"),
+                            // with nowhere to play it, Watch Later takes the first focus
+                            PillButton(if (saved) "In Watch Later" else "Watch Later", onToggleWatchLater,
+                                (if (svc == null) Modifier.focusRequester(playFocus) else Modifier).testTag("watchlater"),
                                 leading = { c -> GlyphIcon(if (saved) Glyph.STAR_FILLED else Glyph.STAR, c, Modifier.size(15.dp)) })
                         }
                     }
