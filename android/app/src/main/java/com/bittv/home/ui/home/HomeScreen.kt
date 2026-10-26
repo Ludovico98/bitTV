@@ -84,6 +84,8 @@ private val ContentX = 137.dp      // where the content area (and the rows' clip
 private val BannerW = 488.dp
 private val BannerH = 215.dp
 private val ActiveW = 243.dp
+/** Between the banner and the first row, and between rows (strip to the next row's title): the same everywhere. */
+private val RowGap = 24.dp
 
 /** True while the screen is resumed: every loop (banner, clock, previews) runs only then. */
 @Composable
@@ -220,7 +222,7 @@ fun HomeScreen(
                     }
                 }
                 item(key = "hero", contentType = "hero") {
-                    Row(Modifier.measured("hero", heights).section("hero") { focusedSection = it; pageSpec.section = it }.padding(start = RowStartPad, top = 20.dp, bottom = 18.dp)) {
+                    Row(Modifier.measured("hero", heights).section("hero") { focusedSection = it; pageSpec.section = it }.padding(start = RowStartPad, top = 20.dp)) {
                         Banner(banner, bannerIndex, state.prefs.subs, state.apps, BannerW, BannerH,
                             onClick = actions::openTitle, onFocus = { _: Title -> lastContent = heroRequester; lastRowKey = null },
                             onIndexChange = { bannerIndex = it }, bannerRequester = heroRequester, dots = dotsRequester,
@@ -244,7 +246,7 @@ fun HomeScreen(
                         onFocusTitle = {},
                         onDevice = { key -> rows.firstOrNull { it.key == "dev" }?.items?.filterIsInstance<RowItem.Device>()
                             ?.firstOrNull { it.key == key }?.inputId?.let(actions::openInput) },
-                        modifier = Modifier.measured(row.key, heights).section(row.key) { focusedSection = it; pageSpec.section = it }.padding(top = 8.dp),
+                        modifier = Modifier.measured(row.key, heights).section(row.key) { focusedSection = it; pageSpec.section = it }.padding(top = RowGap),
                         onTileFocused = { lastContent = it; lastRowKey = row.key },
                         rowRequester = rowRequesters.getOrPut(row.key) { FocusRequester() },
                         previewDevices = resumed && devicesFocused,
@@ -321,7 +323,7 @@ private class PageBringIntoView(density: androidx.compose.ui.unit.Density, priva
     var scrolled: () -> Int? = { null }
     private val line = with(density) { 370.dp.toPx() }      // where the first row's tiles rest on screen
     private val safe = with(density) { 30.dp.toPx() }
-    private val caption = with(density) { 27.dp.toPx() }
+    private val under = with(density) { TileInset.toPx() }   // the strip below a row's tiles
     private val devTile = with(density) { 158.dp.toPx() * 1.1f }   // focused PS5 tile, scaled
 
     @Deprecated("Animation is still honoured by the scrollable; kept for the spring feel")
@@ -332,7 +334,7 @@ private class PageBringIntoView(density: androidx.compose.ui.unit.Density, priva
         var d = offset - line
         // the Devices row is laid out by its tallest tile (the PS5 preview), whichever tile is focused
         val h = if (section == "dev") maxOf(size, devTile) else size
-        val bottom = offset + h + caption - d
+        val bottom = offset + h + under - d
         if (bottom > containerSize - safe) d += bottom - (containerSize - safe)
         return d
     }

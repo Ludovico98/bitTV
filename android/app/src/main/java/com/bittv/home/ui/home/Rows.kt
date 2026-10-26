@@ -80,8 +80,8 @@ import kotlin.math.sin
 
 /** Left room for the focus glow (the strip starts here, on the banner's edge), and the cut-off peek on the right. */
 val RowStartPad = 32.dp
-/** Tiles sit this far inside the glass strip, as the prototype does. */
-private val TileInset = 12.dp
+/** Tiles sit this far inside the glass strip on every side, so a row's cards are centred in it. */
+val TileInset = 12.dp
 private val RowPeek = 120.dp
 
 /**
@@ -122,7 +122,7 @@ fun HomeRowSection(
         }
         Spacer(Modifier.height(10.dp))
         if (row.items.isEmpty()) {
-            Box(Modifier.padding(start = RowStartPad, bottom = 27.dp).size(340.dp, 90.dp)
+            Box(Modifier.padding(start = RowStartPad, top = TileInset, bottom = TileInset).size(340.dp, 90.dp)
                 .border(1.dp, Color(0x2EFFFFFF), RoundedCornerShape(9.dp)), contentAlignment = Alignment.Center) {
                 Text(row.empty.orEmpty(), style = Type.Label.copy(color = Ink2), textAlign = TextAlign.Center, modifier = Modifier.padding(12.dp))
             }
@@ -133,14 +133,15 @@ fun HomeRowSection(
                 Modifier
                     .then(if (rowRequester != null) Modifier.focusRequester(rowRequester) else Modifier)
                     .fillMaxWidth()
+                    .testTag("strip:${row.key}")
                     .fadeIntoGap()
                     .drawBehind { // the glass strip behind the tiles, open on the right; its left edge lines up with the banner,
                         // leaving the gap to the app bar clear (tiles scrolled past it still peek into that gap)
                         val x = RowStartPad.toPx()
-                        drawRoundRect(Glass, Offset(x, 2.dp.toPx()), Size(size.width - x + 40.dp.toPx(), size.height - 24.dp.toPx()), CornerRadius(15.dp.toPx()))
+                        drawRoundRect(Glass, Offset(x, 0f), Size(size.width - x + 40.dp.toPx(), size.height), CornerRadius(15.dp.toPx()))
                     }
                     .focusProperties { onExit = { if (requestedFocusDirection == FocusDirection.Right) cancelFocusChange() } },
-                contentPadding = PaddingValues(start = RowStartPad + TileInset, end = 40.dp, top = 10.dp),
+                contentPadding = PaddingValues(start = RowStartPad + TileInset, end = 40.dp, top = TileInset, bottom = TileInset),
                 horizontalArrangement = Arrangement.spacedBy(20.dp),
             ) {
                 items(row.items, key = { it.key }, contentType = { it::class }) { item ->
@@ -164,31 +165,20 @@ private fun TitleTile(item: RowItem.Show, rowKey: String, subs: Set<Svc>, apps: 
                       onOpen: () -> Unit, onFocus: () -> Unit) {
     val t = item.title
     val svc = t.mainService(subs)
-    Column(Modifier.width(160.dp)) {
-        FocusTile(onClick = onOpen, onFocus = onFocus, width = 160.dp, height = 90.dp,
-            modifier = modifier.testTag("tile:$rowKey:${t.id}")) {
-            PosterArt(t, Modifier.fillMaxSize(), overlay = {
-                apps.firstOrNull { it.svc == svc }?.let { AppIcon(it, 18.dp, 18.dp, Modifier.align(Alignment.TopEnd).padding(6.dp), radius = 5.dp) }
-                if (item.star) GlyphIcon(Glyph.STAR_FILLED, Color(0xFFFFD84D), Modifier.align(Alignment.TopStart).padding(7.dp).size(12.dp))
-                item.progress?.let { p ->
-                    Box(Modifier.align(Alignment.BottomCenter).padding(horizontal = 9.dp, vertical = 6.dp).fillMaxWidth().height(3.dp)
-                        .background(Color(0x4DFFFFFF), RoundedCornerShape(2.dp))) {
-                        Box(Modifier.fillMaxWidth(p).height(3.dp).background(Color.White, RoundedCornerShape(2.dp)))
-                    }
+    FocusTile(onClick = onOpen, onFocus = onFocus, width = 160.dp, height = 90.dp,
+        modifier = modifier.testTag("tile:$rowKey:${t.id}")) {
+        PosterArt(t, Modifier.fillMaxSize(), overlay = {
+            apps.firstOrNull { it.svc == svc }?.let { AppIcon(it, 18.dp, 18.dp, Modifier.align(Alignment.TopEnd).padding(6.dp), radius = 5.dp) }
+            if (item.star) GlyphIcon(Glyph.STAR_FILLED, Color(0xFFFFD84D), Modifier.align(Alignment.TopStart).padding(7.dp).size(12.dp))
+            item.progress?.let { p ->
+                Box(Modifier.align(Alignment.BottomCenter).padding(horizontal = 9.dp, vertical = 6.dp).fillMaxWidth().height(3.dp)
+                    .background(Color(0x4DFFFFFF), RoundedCornerShape(2.dp))) {
+                    Box(Modifier.fillMaxWidth(p).height(3.dp).background(Color.White, RoundedCornerShape(2.dp)))
                 }
-            })
-        }
-        CaptionLine()
+            }
+        })
     }
 }
-
-/**
- * The line a caption under the tiles took. There are no captions (the artwork shows the title and the app's
- * badge), but every row keeps the line: the glass strip and the space between rows are measured with it, and the
- * focused tile's glow needs the room.
- */
-@Composable
-private fun CaptionLine() = Text("", style = Type.Label, modifier = Modifier.padding(top = 9.dp))
 
 @Composable
 private fun DeviceTile(item: RowItem.Device, animate: Boolean, preview: Boolean, modifier: Modifier, onClick: () -> Unit, onFocus: () -> Unit,
@@ -199,37 +189,34 @@ private fun DeviceTile(item: RowItem.Device, animate: Boolean, preview: Boolean,
     val wanted = preview && item.on && item.inputId != null
     var tuned by remember { mutableStateOf(false) }
     LaunchedEffect(wanted) { tuned = false; if (wanted) { delay(HdmiPreview.DWELL_MS); tuned = true } }
-    Column(Modifier.width(w)) {
-        FocusTile(onClick = onClick, onFocus = onFocus, width = w, height = h, lift = item.inputId == null,
-            modifier = modifier.testTag("tile:dev:${item.key}")) {
-            if (live) {
-                when {
-                    item.inputId == null -> Ps5Preview(animate, Modifier.fillMaxSize())
-                    item.on && tuned && wanted -> TvPreview(item.inputId, Modifier.fillMaxSize(), onNoPicture)
-                    item.on -> Box(Modifier.fillMaxSize().background(DeviceShade))
-                    // resting: say so, never connect (that would wake it)
-                    else -> Box(Modifier.fillMaxSize().background(DeviceShade), contentAlignment = Alignment.Center) {
-                        Text(if (item.noPicture) "No picture" else "In rest mode", style = Type.Label.copy(color = Ink2))
-                    }
-                }
-                Row(Modifier.align(Alignment.BottomStart).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (item.on) Text("LIVE", style = Type.Caption.copy(color = Color.White, fontWeight = FontWeight.ExtraBold),
-                        modifier = Modifier.background(Color(0xFFE5322D), RoundedCornerShape(4.dp)).padding(horizontal = 5.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(item.label, style = Type.Label.copy(color = Color.White))
-                }
-                Box(Modifier.align(Alignment.TopEnd).padding(8.dp).size(20.dp).background(Color(0x73000000), RoundedCornerShape(10.dp)),
-                    contentAlignment = Alignment.Center) { GlyphIcon(Glyph.MUTED, Color.White, Modifier.size(11.dp)) }
-            } else {
-                Column(Modifier.fillMaxSize().background(DeviceShade),
-                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    GlyphIcon(Glyph.HDMI, Ink3, Modifier.size(27.dp))
-                    Text(item.label, style = Type.Label.copy(color = Ink2))
-                    Text("No signal", style = Type.Caption.copy(color = Ink3))
+    FocusTile(onClick = onClick, onFocus = onFocus, width = w, height = h, lift = item.inputId == null,
+        modifier = modifier.testTag("tile:dev:${item.key}")) {
+        if (live) {
+            when {
+                item.inputId == null -> Ps5Preview(animate, Modifier.fillMaxSize())
+                item.on && tuned && wanted -> TvPreview(item.inputId, Modifier.fillMaxSize(), onNoPicture)
+                item.on -> Box(Modifier.fillMaxSize().background(DeviceShade))
+                // resting: say so, never connect (that would wake it)
+                else -> Box(Modifier.fillMaxSize().background(DeviceShade), contentAlignment = Alignment.Center) {
+                    Text(if (item.noPicture) "No picture" else "In rest mode", style = Type.Label.copy(color = Ink2))
                 }
             }
+            Row(Modifier.align(Alignment.BottomStart).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (item.on) Text("LIVE", style = Type.Caption.copy(color = Color.White, fontWeight = FontWeight.ExtraBold),
+                    modifier = Modifier.background(Color(0xFFE5322D), RoundedCornerShape(4.dp)).padding(horizontal = 5.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(item.label, style = Type.Label.copy(color = Color.White))
+            }
+            Box(Modifier.align(Alignment.TopEnd).padding(8.dp).size(20.dp).background(Color(0x73000000), RoundedCornerShape(10.dp)),
+                contentAlignment = Alignment.Center) { GlyphIcon(Glyph.MUTED, Color.White, Modifier.size(11.dp)) }
+        } else {
+            Column(Modifier.fillMaxSize().background(DeviceShade),
+                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                GlyphIcon(Glyph.HDMI, Ink3, Modifier.size(27.dp))
+                Text(item.label, style = Type.Label.copy(color = Ink2))
+                Text("No signal", style = Type.Caption.copy(color = Ink3))
+            }
         }
-        CaptionLine()
     }
 }
 

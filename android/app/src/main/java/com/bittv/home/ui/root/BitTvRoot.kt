@@ -28,6 +28,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -74,6 +75,7 @@ import com.bittv.home.today.TodayInfo
 import com.bittv.home.ui.components.LocalMotion
 import com.bittv.home.ui.components.Motion
 import com.bittv.home.ui.details.DetailsScreen
+import com.bittv.home.search.Related
 import com.bittv.home.ui.details.NotInstalledScreen
 import com.bittv.home.ui.details.OpeningScreen
 import com.bittv.home.ui.home.HomeActions
@@ -334,8 +336,13 @@ fun BitTvRoot(graph: AppGraph, skipBoot: Boolean = false, homeSignal: Int = 0, d
                     online = graph.search?.let { s -> { q: String -> s.search(q) } },
                     query = searchQuery, onQueryChange = { searchQuery = it })
                 is Screen.Details -> { if (!demoCatalog) LaunchedEffect(top.title.id) { top.title.services.forEach { linkFor(top.title, it) } }
-                DetailsScreen(top.title, effective, catalog.progress.firstOrNull { it.titleId == top.title.id }, apps,
-                    onPlay = { play(top.title, it) }, onToggleWatchLater = { actions.toggleWatchLater(top.title) }) }
+                // keyed: a similar title opened from here is a new page (its own scroll and focus), Back returns to this one
+                key(top.title.id) {
+                    DetailsScreen(top.title, effective, catalog.progress.firstOrNull { it.titleId == top.title.id }, apps,
+                        onPlay = { play(top.title, it) }, onToggleWatchLater = { actions.toggleWatchLater(top.title) },
+                        related = remember(catalog.titles, effective.subs) { Related.to(top.title, catalog.titles, effective.subs) },
+                        onOpen = { push(Screen.Details(it)) })
+                } }
                 is Screen.NotInstalled -> NotInstalledScreen(top.app, onInstall = {
                     if (demoCatalog) installed = installed + top.app.id else graph.appsRepo.openStore(top.app)
                     pop()

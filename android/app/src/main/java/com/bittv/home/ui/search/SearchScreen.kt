@@ -60,6 +60,9 @@ import com.bittv.home.ui.theme.Ink3
 import com.bittv.home.ui.theme.Type
 import kotlinx.coroutines.delay
 
+/** The same gap across and down between result tiles (the title page's Similar Content uses this grid too). */
+internal val TileGap = 20.dp
+internal val TileW = 110.dp
 private val KEY_ROWS = listOf("1234567890", "qwertyuiop", "asdfghjkl-", "zxcvbnm'.⌫")
 private val DEMO_VOICE = listOf("crime series", "the long tide", "comedy movies", "sci-fi on apple tv", "commissario")
 
@@ -152,7 +155,7 @@ fun SearchScreen(
             GridCells.Fixed(4),
             Modifier.padding(start = 410.dp, top = 88.dp).fillMaxHeight(),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 10.dp, end = 40.dp, top = 8.dp, bottom = 80.dp),
-            horizontalArrangement = Arrangement.spacedBy(20.dp), verticalArrangement = Arrangement.spacedBy(36.dp),
+            horizontalArrangement = Arrangement.spacedBy(TileGap), verticalArrangement = Arrangement.spacedBy(TileGap),
         ) {
             item(span = { GridItemSpan(4) }) {
                 Row(verticalAlignment = Alignment.Bottom) {
@@ -175,8 +178,8 @@ fun SearchScreen(
 }
 
 @Composable
-private fun ResultTile(t: Title, subs: Set<Svc>, apps: List<AppEntry>, tag: String, onOpen: (Title) -> Unit) {
-    FocusTile(onClick = { onOpen(t) }, width = 110.dp, height = 62.dp,
+internal fun ResultTile(t: Title, subs: Set<Svc>, apps: List<AppEntry>, tag: String, onOpen: (Title) -> Unit) {
+    FocusTile(onClick = { onOpen(t) }, width = TileW, height = 62.dp,
         modifier = Modifier.testTag(tag).semantics { contentDescription = t.name }) {
         PosterArt(t, Modifier.fillMaxSize(), titleScale = 0.72f, overlay = {
             val svc = t.mainService(subs)

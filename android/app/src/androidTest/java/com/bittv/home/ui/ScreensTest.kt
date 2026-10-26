@@ -25,6 +25,20 @@ import com.bittv.home.ui.details.NotInstalledScreen
 import com.bittv.home.ui.search.SearchScreen
 import com.bittv.home.ui.theme.BitTvTheme
 import org.junit.Rule
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.gestures.BringIntoViewSpec
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
+import androidx.compose.runtime.CompositionLocalProvider
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.isFocused
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.pressKey
+import androidx.compose.ui.unit.dp
+import com.bittv.home.search.Related
 import org.junit.Test
 
 class SearchScreenTest {
@@ -77,6 +91,74 @@ class DetailsScreenTest {
         rule.onAllNodesWithText("Back").assertCountEquals(0)          // the remote's Back goes back
         rule.onAllNodesWithText("AVAILABLE ON").assertCountEquals(0)  // the Play button already names the app
         rule.onAllNodesWithText("Subscribed", substring = true).assertCountEquals(0)
+    }
+
+    private val opened = mutableListOf<String>()
+    private val title = DemoCatalog.titles.first()
+    private val related = Related.to(title, DemoCatalog.titles, Prefs().subs)
+    private fun setDetails() = rule.setContent {
+        BitTvTheme { DetailsScreen(title, Prefs(), null, DemoCatalog.apps, onPlay = {}, onToggleWatchLater = {}, related = related, onOpen = { opened += it.id }) }
+    }
+    private fun press(k: Key) { rule.onRoot().performKeyInput { pressKey(k) }; rule.waitForIdle() }
+    private fun node(tag: String) = rule.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode()
+    private fun onScreen(tag: String): Boolean {
+        val n = node(tag); val h = rule.onRoot().fetchSemanticsNode().size.height
+        return n.positionInRoot.y >= 0 && n.positionInRoot.y + n.size.height <= h
+    }
+
+    @Test
+    fun downFromTheButtonsGoesToSimilarTitlesWhichOpenTheirPage() {
+        assertTrue(related.size > 4)
+        setDetails()
+        press(Key.DirectionDown)
+        rule.onNodeWithTag("related:0").assertIsFocused()
+        assertTrue("the first similar title is fully on screen", onScreen("related:0"))
+        press(Key.DirectionCenter)
+        assertEquals(listOf(related[0].id), opened)
+    }
+
+    @Test
+    fun theSimilarTitlesScrollVerticallyAndUpComesBackToTheButtons() {
+        setDetails()
+        press(Key.DirectionDown); press(Key.DirectionDown)
+        val focused = rule.onNode(isFocused()).fetchSemanticsNode().config[SemanticsProperties.TestTag]
+        assertTrue("Down again stays in the grid, got $focused", focused.startsWith("related:") && focused != "related:0")
+        assertTrue("$focused is scrolled into view", onScreen(focused))
+        press(Key.DirectionUp); press(Key.DirectionUp)
+        rule.onNodeWithTag("play").assertIsFocused()
+        assertTrue("the title's page is back at its top", onScreen("play"))
+    }
+
+    /** Google TV's own scroll rule: the focused thing is held 30 % down the screen. */
+    @OptIn(ExperimentalFoundationApi::class)
+    private val pivot = object : BringIntoViewSpec {
+        override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float) = offset - 0.3f * containerSize
+    }
+
+    @OptIn(ExperimentalFoundationApi::class)
+    @Test
+    fun underTheTvsScrollRuleThePageStillOpensAtItsTopAndComesBackToIt() {
+        rule.setContent { BitTvTheme { CompositionLocalProvider(LocalBringIntoViewSpec provides pivot) {
+            DetailsScreen(title, Prefs(), null, DemoCatalog.apps, onPlay = {}, onToggleWatchLater = {}, related = related, onOpen = {})
+        } } }
+        val kicker = title.services.first().label.uppercase()
+        fun kickerTop() = rule.onNodeWithText(kicker).fetchSemanticsNode().positionInRoot.y
+        val atOpen = kickerTop()
+        assertEquals("the kicker stays where it is laid out (112 dp down)", with(rule.density) { 112.dp.toPx() }, atOpen, with(rule.density) { 4.dp.toPx() })
+        press(Key.DirectionDown); press(Key.DirectionDown); press(Key.DirectionUp); press(Key.DirectionUp)
+        rule.onNodeWithTag("play").assertIsFocused()
+        assertEquals(atOpen, kickerTop(), 1f)
+    }
+
+    @Test
+    fun theSimilarTitlesAreLaidOutLikeTheSearchGrid() {
+        setDetails()
+        val a = node("related:0"); val right = node("related:1")
+        val below = (1 until related.size).map { node("related:$it") }.first { it.positionInRoot.y > a.positionInRoot.y }
+        val across = right.positionInRoot.x - (a.positionInRoot.x + a.size.width)
+        val down = below.positionInRoot.y - (a.positionInRoot.y + a.size.height)
+        assertEquals(across, down, 1f)
+        assertEquals(with(rule.density) { 110.dp.toPx() }, a.size.width.toFloat(), 1f)   // the Search page's tile
     }
 }
 
