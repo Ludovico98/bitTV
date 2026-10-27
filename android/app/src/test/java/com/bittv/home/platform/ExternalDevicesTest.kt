@@ -17,9 +17,9 @@ class ExternalDevicesTest {
 
     @Test fun aNamedDeviceByItsNameAndAPortWithoutOneByThePort() {
         val inputs = HdmiInputs.pick(tv)
-        assertEquals(listOf("HDMI 1", "PlayStation 5"), inputs.map { it.label })
-        assertEquals(HdmiInput("com.tcl.tvinput/.TvPassThroughService/HDMI200004", "PlayStation 5", "HDMI 2"), inputs[1])
-        assertEquals("com.tcl.tvinput/.TvPassThroughService/HW15", inputs[0].inputId)   // switching goes to the port itself
+        assertEquals(listOf("PlayStation 5", "HDMI 1"), inputs.map { it.label })   // named devices first
+        assertEquals(HdmiInput("com.tcl.tvinput/.TvPassThroughService/HDMI200004", "PlayStation 5", "HDMI 2"), inputs[0])
+        assertEquals("com.tcl.tvinput/.TvPassThroughService/HW15", inputs[1].inputId)   // switching goes to the port itself
     }
 
     @Test fun emptyPortsTheTunerAndAirPlayAreLeftOut() {

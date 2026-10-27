@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import kotlinx.coroutines.flow.first
@@ -168,7 +169,9 @@ fun HomeRowSection(
                 items(row.items, key = { it.key }, contentType = { it::class }) { item ->
                     val fr = remember(item.key) { FocusRequester().also { requesters[item.key] = it } }
                     val view = remember { BringIntoViewRequester() }
-                    LaunchedEffect(moveToken) { if (moveToken > 0 && item.key == focusedKey) view.bringIntoView() }
+                    // once the moved row is laid out in its new place (two frames): the page then glides to it on its
+                    // spring. Asked at once, it aimed at where the row was (seen on the TV: the held tile ended below the edge)
+                    LaunchedEffect(moveToken) { if (moveToken > 0 && item.key == focusedKey) { withFrameNanos { }; withFrameNanos { }; view.bringIntoView() } }
                     val mod = Modifier.bringIntoViewRequester(view).focusRequester(fr).onFocusChanged {
                         if (it.isFocused) { focusedKey = item.key; focusedIndex = row.items.indexOfFirst { x -> x.key == item.key }; onTileFocused(fr) }
                     }

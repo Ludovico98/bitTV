@@ -265,8 +265,7 @@ fun HomeScreen(
                     HomeRowSection(
                         row, state.prefs.subs, state.apps,
                         onOpen = actions::openTitle,
-                        modifier = Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null, placementSpec = motion.tween(160))
-                            .onPreviewKeyEvent { rowKeys(row.key, it) }
+                        modifier = Modifier.onPreviewKeyEvent { rowKeys(row.key, it) }
                             .measured(row.key, heights).section(row.key) { focusedSection = it; pageSpec.section = it }.padding(top = RowGap),
                         onTileFocused = { lastContent = it; lastRowKey = row.key },
                         rowRequester = rowRequesters.getOrPut(row.key) { FocusRequester() },

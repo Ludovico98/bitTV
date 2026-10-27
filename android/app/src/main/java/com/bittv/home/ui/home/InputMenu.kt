@@ -51,7 +51,7 @@ private val RowShape = RoundedCornerShape(12.dp)
 private val OnLight = Color(0xFF0B0F18)
 
 /**
- * The Inputs button's dropdown, like Cast's: what is plugged into the TV, by the name it gives (else its HDMI port),
+ * The Inputs button's dropdown, like Cast's: what is plugged into the TV, by the name it gives, then the other HDMI ports,
  * read each time it opens. Reading asks the devices nothing, so nothing is woken. OK switches the TV to that input;
  * focus stays inside; Back closes it.
  */
@@ -90,7 +90,7 @@ fun InputMenu(find: suspend () -> List<HdmiInput>, onOpen: (HdmiInput) -> Unit, 
             list.isEmpty() -> Text("Nothing is plugged into the HDMI ports.", style = Type.Body.copy(color = Ink2), modifier = Modifier.padding(12.dp))
         }
         list.orEmpty().forEachIndexed { i, input ->
-            MenuRow(input.label, input.port.takeIf { input.name != null }, "inputs:${input.inputId}", Glyph.HDMI,
+            MenuRow(input.label, if (input.name != null) input.port else "No name reported", "inputs:${input.inputId}", Glyph.HDMI,
                 if (i == 0) Modifier.focusRequester(first) else Modifier) { onOpen(input) }
         }
         // always a focus target, also while checking or when nothing is plugged in

@@ -12,6 +12,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.test.platform.app.InstrumentationRegistry
@@ -82,6 +83,12 @@ class RowReorderTest {
         press(KeyEvent.KEYCODE_DPAD_DOWN)
         assertEquals(listOf("wl", "comedy", "cw"), rowOrder().take(3))
         rule.onNodeWithTag("tile:cw:epidemic").assertIsFocused()   // the tile he held comes along
+        // and stays on screen: the page follows the row to its new place
+        SystemClock.sleep(600); rule.waitForIdle()
+        val tile = rule.onNodeWithTag("tile:cw:epidemic").fetchSemanticsNode()
+        val h = rule.onRoot().fetchSemanticsNode().size.height
+        assertTrue("held tile at ${tile.positionInRoot.y}..${tile.positionInRoot.y + tile.size.height} of $h",
+            tile.positionInRoot.y >= 0 && tile.positionInRoot.y + tile.size.height <= h)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         val shown = setOf("wl", "comedy", "cw")
         assertEquals(listOf("wl", "comedy", "cw"), saved.last().filter { it in shown })

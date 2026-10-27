@@ -15,16 +15,18 @@ data class HdmiInput(val inputId: String, val name: String?, val port: String) {
 
 object HdmiInputs {
     /**
-     * What is plugged in, port by port: each device the TV knows by name (its own input, on its port), and a port
-     * with something on it that gave no name as just the port ("HDMI 1"). Nothing else: no tuner, no AirPlay.
+     * What is plugged in: first each device the TV knows by name (its own input, on its port), then the other ports
+     * as just the port ("HDMI 1"). Nothing else: no tuner, no AirPlay. The TCL can't say which of those other ports
+     * has a cable in: every port reads "connected" or "standby" and its cable status "disconnected", the PS5's
+     * included (dumpsys tv_input, 2026-10-26) — only a device's own name (HDMI-CEC) is reliable. So they are all
+     * listed, as the way to a device that gives no name.
      */
     fun pick(inputs: List<InputSnapshot>): List<HdmiInput> {
-        val ports = inputs.filter { it.hdmi && it.parentId == null }
-        val devices = inputs.filter { it.hdmi && it.parentId != null && it.connected }.groupBy { it.parentId }
-        return ports.sortedBy { it.label }.flatMap { port ->
-            devices[port.id]?.map { HdmiInput(it.id, it.label, port.label) }
-                ?: listOfNotNull(HdmiInput(port.id, null, port.label).takeIf { port.connected })
-        }
+        val ports = inputs.filter { it.hdmi && it.parentId == null }.sortedBy { it.label }
+        val devices = inputs.filter { it.hdmi && it.parentId != null && it.connected }
+        val named = ports.flatMap { port -> devices.filter { it.parentId == port.id }.map { HdmiInput(it.id, it.label, port.label) } }
+        val bare = ports.filter { port -> port.connected && devices.none { it.parentId == port.id } }.map { HdmiInput(it.id, null, it.label) }
+        return named + bare
     }
 }
 
